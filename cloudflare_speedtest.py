@@ -2057,16 +2057,34 @@ def load_config():
     return None
 
 
-def save_config(worker_domain, uuid):
+def save_config(worker_domain=None, uuid=None, github_token=None, repo_info=None, file_path=None):
     """保存配置到文件"""
     try:
-        config = {
-            "worker_domain": worker_domain,
-            "uuid": uuid,
-            "last_used": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
+        # 加载现有配置
+        existing_config = {}
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                    existing_config = json.load(f)
+            except:
+                pass
+        
+        # 更新配置
+        if worker_domain and uuid:
+            existing_config["worker_domain"] = worker_domain
+            existing_config["uuid"] = uuid
+            existing_config["api_last_used"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        if github_token and repo_info:
+            existing_config["github_token"] = github_token
+            existing_config["repo_info"] = repo_info
+            if file_path:
+                existing_config["file_path"] = file_path
+            existing_config["github_last_used"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # 保存配置
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(config, f, ensure_ascii=False, indent=2)
+            json.dump(existing_config, f, ensure_ascii=False, indent=2)
         return True
     except Exception as e:
         print(f"⚠️  保存配置失败: {e}")
@@ -2165,7 +2183,7 @@ def upload_to_cloudflare_api(result_file="result.csv"):
                 print(f"   Worker 域名: {worker_domain}")
                 print(f"   UUID或者路径: {uuid}")
                 # 更新最后使用时间
-                save_config(worker_domain, uuid)
+                save_config(worker_domain=worker_domain, uuid=uuid)
                 break
             elif config_choice == "2":
                 print("\n请输入新的配置...")
@@ -2227,7 +2245,7 @@ def upload_to_cloudflare_api(result_file="result.csv"):
             # 询问是否保存配置
             save_choice = input("\n是否保存此配置供下次使用？[Y/n]: ").strip().lower()
             if save_choice not in ['n', 'no']:
-                if save_config(worker_domain, uuid):
+                if save_config(worker_domain=worker_domain, uuid=uuid):
                     print("✅ 配置已保存")
                 else:
                     print("⚠️  配置保存失败，但不影响本次上报")
@@ -2556,33 +2574,101 @@ def upload_to_github(result_file="result.csv"):
         print("请先完成测速后再上传结果")
         return None
     
-    # 获取 GitHub Token
-    print("\n📝 请输入您的 GitHub Personal Access Token")
-    print("提示: 如果没有Token，请访问 https://github.com/settings/tokens 创建")
-    print("     需要 repo 权限")
+    # 尝试加载保存的配置
+    saved_config = load_config()
+    github_token = None
+    repo_info = None
+    file_path = "cloudflare_ips.txt"
     
-    github_token = input("\nGitHub Token: ").strip()
-    if not github_token:
-        print("❌ Token 不能为空")
-        return None
+    if saved_config:
+        saved_token = saved_config.get('github_token', '')
+        saved_repo = saved_config.get('repo_info', '')
+        saved_file_path = saved_config.get('file_path', 'cloudflare_ips.txt')
+        last_used = saved_config.get('github_last_used', '未知')
+        
+        if saved_token and saved_repo:
+            print(f"\n💾 检测到上次使用的配置:")
+            print(f"   GitHub Token: {saved_token[:10]}...{saved_token[-4:]}")
+            print(f"   仓库: {saved_repo}")
+            print(f"   文件路径: {saved_file_path}")
+            print(f"   上次使用: {last_used}")
+            print("\n是否使用上次的配置？")
+            print("  1. 是 - 使用上次配置")
+            print("  2. 否 - 输入新的配置")
+            print("  3. 清除配置 - 删除保存的配置")
+            
+            while True:
+                config_choice = input("\n请选择 [1/2/3]: ").strip()
+                if config_choice == "1":
+                    github_token = saved_token
+                    repo_info = saved_repo
+                    file_path = saved_file_path
+                    print(f"\n✅ 使用保存的配置")
+                    print(f"   仓库: {repo_info}")
+                    print(f"   文件路径: {file_path}")
+                    # 更新最后使用时间
+                    save_config(github_token=github_token, repo_info=repo_info, file_path=file_path)
+                    break
+                elif config_choice == "2":
+                    print("\n请输入新的配置...")
+                    break
+                elif config_choice == "3":
+                    # 只清除GitHub配置，保留API配置
+                    if os.path.exists(CONFIG_FILE):
+                        try:
+                            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                                config = json.load(f)
+                            config.pop('github_token', None)
+                            config.pop('repo_info', None)
+                            config.pop('file_path', None)
+                            config.pop('github_last_used', None)
+                            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                                json.dump(config, f, ensure_ascii=False, indent=2)
+                            print("✅ 已清除保存的GitHub配置")
+                        except:
+                            pass
+                    print("请重新输入配置...")
+                    break
+                else:
+                    print("✗ 请输入 1、2 或 3")
     
-    # 获取仓库信息
-    print("\n📝 请输入仓库信息")
-    print("格式: owner/repo (例如: username/repo-name)")
-    
-    repo_info = input("\n仓库 (owner/repo): ").strip()
-    if not repo_info or '/' not in repo_info:
-        print("❌ 仓库格式不正确，应为 owner/repo")
-        return None
+    # 如果没有使用保存的配置，则获取新的配置
+    if not github_token or not repo_info:
+        # 获取 GitHub Token
+        print("\n📝 请输入您的 GitHub Personal Access Token")
+        print("提示: 如果没有Token，请访问 https://github.com/settings/tokens 创建")
+        print("     需要 repo 权限")
+        
+        github_token = input("\nGitHub Token: ").strip()
+        if not github_token:
+            print("❌ Token 不能为空")
+            return None
+        
+        # 获取仓库信息
+        print("\n📝 请输入仓库信息")
+        print("格式: owner/repo (例如: username/repo-name)")
+        
+        repo_info = input("\n仓库 (owner/repo): ").strip()
+        if not repo_info or '/' not in repo_info:
+            print("❌ 仓库格式不正确，应为 owner/repo")
+            return None
+        
+        # 获取文件路径
+        file_path_input = input("\n文件路径 [默认: cloudflare_ips.txt]: ").strip()
+        if file_path_input:
+            file_path = file_path_input
+        
+        # 询问是否保存配置
+        save_choice = input("\n是否保存此配置供下次使用？[Y/n]: ").strip().lower()
+        if save_choice not in ['n', 'no']:
+            if save_config(github_token=github_token, repo_info=repo_info, file_path=file_path):
+                print("✅ 配置已保存")
+            else:
+                print("⚠️  配置保存失败，但不影响本次上传")
     
     repo_parts = repo_info.split('/', 1)
     owner = repo_parts[0]
     repo = repo_parts[1]
-    
-    # 获取文件路径
-    file_path = input("\n文件路径 [默认: cloudflare_ips.txt]: ").strip()
-    if not file_path:
-        file_path = "cloudflare_ips.txt"
     
     # 读取测速结果
     print("\n📊 正在读取测速结果...")
@@ -3196,6 +3282,33 @@ def upload_to_github_cli(result_file="result.csv", repo_info=None, github_token=
                         print(f"⚠️  无法检查文件状态，将尝试创建/更新")
                 else:
                     raise
+            except (requests.exceptions.ConnectionError, requests.exceptions.RequestException) as e:
+                # 网络连接错误，尝试使用curl备用方案
+                error_str = str(e)
+                if "Can't assign requested address" in error_str or "Failed to establish" in error_str or "Max retries exceeded" in error_str:
+                    print(f"⚠️  检测到网络连接问题，尝试使用curl备用方案...")
+                    try:
+                        check_response = curl_request(
+                            f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                            method='GET',
+                            headers={
+                                "Authorization": f"token {github_token}",
+                                "Accept": "application/vnd.github.v3+json"
+                            },
+                            timeout=10
+                        )
+                        if check_response.status_code == 200:
+                            file_data = check_response.json()
+                            file_sha = file_data.get('sha', '')
+                            print(f"⚠️  文件已存在，将更新文件")
+                        elif check_response.status_code == 404:
+                            print(f"✅ 文件不存在，将创建新文件")
+                        else:
+                            print(f"⚠️  无法检查文件状态，将尝试创建/更新")
+                    except Exception as curl_e:
+                        print(f"⚠️  curl备用方案也失败: {curl_e}，将尝试创建/更新")
+                else:
+                    raise
         except Exception as e:
             print(f"⚠️  检查文件状态失败: {e}，将尝试创建/更新")
         
@@ -3238,6 +3351,27 @@ def upload_to_github_cli(result_file="result.csv", repo_info=None, github_token=
                         },
                         timeout=30
                     )
+                else:
+                    raise
+            except (requests.exceptions.ConnectionError, requests.exceptions.RequestException) as e:
+                # 网络连接错误，尝试使用curl备用方案
+                error_str = str(e)
+                if "Can't assign requested address" in error_str or "Failed to establish" in error_str or "Max retries exceeded" in error_str:
+                    print(f"⚠️  检测到网络连接问题，尝试使用curl备用方案...")
+                    try:
+                        response = curl_request(
+                            f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                            method='PUT',
+                            data=upload_data,
+                            headers={
+                                "Authorization": f"token {github_token}",
+                                "Accept": "application/vnd.github.v3+json"
+                            },
+                            timeout=30
+                        )
+                    except Exception as curl_e:
+                        print(f"❌ curl备用方案也失败: {curl_e}")
+                        raise
                 else:
                     raise
             
