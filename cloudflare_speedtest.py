@@ -1228,13 +1228,13 @@ def handle_beginner_mode(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
         print("💡 提示：结果文件中的IP按速度从快到慢排序")
         
         # 询问是否上报结果
-        upload_results_to_api("result.csv")
+        upload_info = upload_results_to_api("result.csv")
         
         # 输出对应的命令行命令
         print("\n" + "=" * 80)
         print(" 💡 快速复用命令")
         print("=" * 80)
-        cli_cmd = generate_cli_command("beginner", ip_version, None, dn_count, speed_limit, time_limit)
+        cli_cmd = generate_cli_command("beginner", ip_version, None, dn_count, speed_limit, time_limit, upload_info)
         print("本次交互对应的命令行命令：")
         print("-" * 80)
         print(cli_cmd)
@@ -1433,13 +1433,13 @@ def handle_normal_mode(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
                 print("\n✅ 测速完成！结果已保存到 result.csv")
                 
                 # 询问是否上报结果
-                upload_results_to_api("result.csv")
+                upload_info = upload_results_to_api("result.csv")
                 
                 # 输出对应的命令行命令
                 print("\n" + "=" * 80)
                 print(" 💡 快速复用命令")
                 print("=" * 80)
-                cli_cmd = generate_cli_command("normal", ip_version, cfcolo, dn_count, speed_limit, time_limit)
+                cli_cmd = generate_cli_command("normal", ip_version, cfcolo, dn_count, speed_limit, time_limit, upload_info)
                 print("本次交互对应的命令行命令：")
                 print("-" * 80)
                 print(cli_cmd)
@@ -1894,8 +1894,19 @@ def run_with_args(args):
     return 0
 
 
-def generate_cli_command(mode, ip_version, cfcolo=None, dn_count=None, speed_limit=None, time_limit=None):
-    """生成对应的命令行命令"""
+def generate_cli_command(mode, ip_version, cfcolo=None, dn_count=None, speed_limit=None, time_limit=None, upload_info=None):
+    """生成对应的命令行命令
+    
+    Args:
+        upload_info: 上传配置信息字典，可以包含:
+            - upload_method: 'api' 或 'github'
+            - worker_domain: Cloudflare Workers 域名 (api方式)
+            - uuid: UUID或路径 (api方式)
+            - upload_count: 上传数量 (api方式)
+            - github_token: GitHub Token (github方式)
+            - repo_info: 仓库信息 owner/repo (github方式)
+            - file_path: 文件路径 (github方式)
+    """
     # 根据系统选择Python命令
     if sys.platform == "win32":
         python_cmd = "python"
@@ -1927,6 +1938,28 @@ def generate_cli_command(mode, ip_version, cfcolo=None, dn_count=None, speed_lim
     # 添加地区码（常规模式）
     if mode == "normal" and cfcolo:
         cmd_parts.append(f"--region {cfcolo}")
+    
+    # 添加上传配置
+    if upload_info:
+        if upload_info.get("upload_method") == "api":
+            cmd_parts.append("--upload api")
+            if upload_info.get("worker_domain"):
+                cmd_parts.append(f"--worker-domain {upload_info['worker_domain']}")
+            if upload_info.get("uuid"):
+                cmd_parts.append(f"--uuid {upload_info['uuid']}")
+            if upload_info.get("upload_count"):
+                cmd_parts.append(f"--upload-count {upload_info['upload_count']}")
+        elif upload_info.get("upload_method") == "github":
+            cmd_parts.append("--upload github")
+            if upload_info.get("github_token"):
+                # Token较长，使用引号包裹
+                cmd_parts.append(f"--token '{upload_info['github_token']}'")
+            if upload_info.get("repo_info"):
+                cmd_parts.append(f"--repo {upload_info['repo_info']}")
+            if upload_info.get("file_path"):
+                cmd_parts.append(f"--file-path {upload_info['file_path']}")
+            if upload_info.get("upload_count"):
+                cmd_parts.append(f"--upload-count {upload_info['upload_count']}")
     
     return " ".join(cmd_parts)
 
@@ -2053,7 +2086,11 @@ def clear_config():
 
 
 def upload_results_to_api(result_file="result.csv"):
-    """上报优选结果到 Cloudflare Workers API 或 GitHub"""
+    """上报优选结果到 Cloudflare Workers API 或 GitHub
+    
+    Returns:
+        dict: 上传配置信息，包含上传方式、相关参数等，如果未上传则返回None
+    """
     print("\n" + "=" * 70)
     print(" 优选结果上报功能")
     print("=" * 70)
@@ -2064,7 +2101,7 @@ def upload_results_to_api(result_file="result.csv"):
     choice = input("\n是否要上报优选结果？[y/N]: ").strip().lower()
     if choice not in ['y', 'yes']:
         print("跳过上报")
-        return
+        return None
     
     # 选择上传方式
     print("\n" + "=" * 70)
@@ -2077,11 +2114,11 @@ def upload_results_to_api(result_file="result.csv"):
     while True:
         upload_method = input("\n请选择上传方式 [1/2]: ").strip()
         if upload_method == "1":
-            upload_to_cloudflare_api(result_file)
-            break
+            upload_info = upload_to_cloudflare_api(result_file)
+            return upload_info
         elif upload_method == "2":
-            upload_to_github(result_file)
-            break
+            upload_info = upload_to_github(result_file)
+            return upload_info
         else:
             print("✗ 请输入 1 或 2")
 
@@ -2098,7 +2135,7 @@ def upload_to_cloudflare_api(result_file="result.csv"):
     if not os.path.exists(result_file):
         print(f"❌ 未找到测速结果文件: {result_file}")
         print("请先完成测速后再上报结果")
-        return
+        return None
     
     # 尝试加载保存的配置
     saved_config = load_config()
@@ -2150,7 +2187,7 @@ def upload_to_cloudflare_api(result_file="result.csv"):
         management_url = input("\n管理页面 URL: ").strip()
         if not management_url:
             print("❌ URL 不能为空")
-            return
+            return None
     
         # 解析 URL，提取域名和 UUID
         try:
@@ -2170,7 +2207,7 @@ def upload_to_cloudflare_api(result_file="result.csv"):
             # 从路径中提取 UUID（不再验证格式）
             if not worker_domain:
                 print("❌ 无法解析域名，请检查 URL 格式")
-                return
+                return None
             
             # 从路径中提取最后一个非空部分作为UUID
             path_parts = [p for p in parsed.path.strip('/').split('/') if p]
@@ -2178,7 +2215,7 @@ def upload_to_cloudflare_api(result_file="result.csv"):
                 print("❌ 无法从 URL 中提取 UUID或者路径")
                 print("   请确保 URL 包含 UUID或者路径")
                 print("   格式示例: https://域名/UUID或者路径")
-                return
+                return None
             
             uuid = path_parts[-1]
             
@@ -2198,7 +2235,7 @@ def upload_to_cloudflare_api(result_file="result.csv"):
         except Exception as e:
             print(f"❌ URL 解析失败: {e}")
             print("   请检查 URL 格式是否正确")
-            return
+            return None
     
     # 构建 API URL
     api_url = f"https://{worker_domain}/{uuid}/api/preferred-ips"
@@ -2346,7 +2383,7 @@ def upload_to_cloudflare_api(result_file="result.csv"):
         confirm = input("\n确认上报以上IP？[Y/n]: ").strip().lower()
         if confirm in ['n', 'no']:
             print("取消上报")
-            return
+            return None
         
         # 如果需要清空，先执行清空操作
         if should_clear:
@@ -2485,14 +2522,27 @@ def upload_to_cloudflare_api(result_file="result.csv"):
             print(f"   - 优选IP已添加，订阅生成时会自动使用")
             print(f"   - 批量上报速度更快，避免了逐个请求的超时问题")
         
+        # 返回上传配置信息
+        return {
+            "upload_method": "api",
+            "worker_domain": worker_domain,
+            "uuid": uuid,
+            "upload_count": upload_count
+        }
+        
     except Exception as e:
         print(f"❌ 读取测速结果失败: {e}")
         import traceback
         traceback.print_exc()
+        return None
 
 
 def upload_to_github(result_file="result.csv"):
-    """上传优选结果到 GitHub 公开仓库"""
+    """上传优选结果到 GitHub 公开仓库
+    
+    Returns:
+        dict: 上传配置信息，包含上传方式、相关参数等，如果未上传则返回None
+    """
     print("\n" + "=" * 70)
     print(" GitHub 仓库上传")
     print("=" * 70)
@@ -2504,7 +2554,7 @@ def upload_to_github(result_file="result.csv"):
     if not os.path.exists(result_file):
         print(f"❌ 未找到测速结果文件: {result_file}")
         print("请先完成测速后再上传结果")
-        return
+        return None
     
     # 获取 GitHub Token
     print("\n📝 请输入您的 GitHub Personal Access Token")
@@ -2514,7 +2564,7 @@ def upload_to_github(result_file="result.csv"):
     github_token = input("\nGitHub Token: ").strip()
     if not github_token:
         print("❌ Token 不能为空")
-        return
+        return None
     
     # 获取仓库信息
     print("\n📝 请输入仓库信息")
@@ -2523,7 +2573,7 @@ def upload_to_github(result_file="result.csv"):
     repo_info = input("\n仓库 (owner/repo): ").strip()
     if not repo_info or '/' not in repo_info:
         print("❌ 仓库格式不正确，应为 owner/repo")
-        return
+        return None
     
     repo_parts = repo_info.split('/', 1)
     owner = repo_parts[0]
@@ -2790,6 +2840,15 @@ def upload_to_github(result_file="result.csv"):
                 print(f"   - 您可以使用原始文件地址直接访问IP列表")
                 print(f"   - 文件格式为换行符分隔，每行一个 IP:端口#地区名-速度MB/s")
                 print(f"   - 您可以在GitHub上管理这个仓库")
+                
+                # 返回上传配置信息
+                return {
+                    "upload_method": "github",
+                    "repo_info": f"{owner}/{repo}",
+                    "github_token": github_token,
+                    "file_path": file_path,
+                    "upload_count": upload_count
+                }
             elif response and response.status_code == 401:
                 print(f"❌ 认证失败！请检查：")
                 print(f"   1. GitHub Token 是否正确")
@@ -2819,6 +2878,7 @@ def upload_to_github(result_file="result.csv"):
         print(f"❌ 读取测速结果失败: {e}")
         import traceback
         traceback.print_exc()
+        return None
 
 
 def upload_to_cloudflare_api_cli(result_file="result.csv", worker_domain=None, uuid=None, upload_count=10):
