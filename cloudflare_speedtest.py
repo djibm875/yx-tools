@@ -230,6 +230,9 @@ CLOUDFLARE_IP_FILE = "Cloudflare.txt"
 CLOUDFLARE_IPV6_URL = "https://www.cloudflare.com/ips-v6/"
 CLOUDFLARE_IPV6_FILE = "Cloudflare_ipv6.txt"
 
+# 默认测速URL
+DEFAULT_SPEEDTEST_URL = "https://speed.cloudflare.com/__down?measId=&bytes=200000000"
+
 # Cloudflare IPv6 地址段（内置）
 # 数据来源：https://www.cloudflare.com/ips-v6/
 CLOUDFLARE_IPV6_RANGES = [
@@ -1206,6 +1209,7 @@ def handle_beginner_mode(ip_file=CLOUDFLARE_IP_FILE):
         "-dn", dn_count,
         "-sl", speed_limit,
         "-tl", time_limit,
+        "-url", DEFAULT_SPEEDTEST_URL,
         "-o", "result.csv"
     ])
     
@@ -1395,6 +1399,7 @@ def handle_normal_mode(ip_file=CLOUDFLARE_IP_FILE):
                 "-dn", dn_count,
                 "-sl", speed_limit,
                 "-tl", time_limit,
+                "-url", DEFAULT_SPEEDTEST_URL,
                 "-o", "result.csv"
             ])
             
@@ -1521,6 +1526,7 @@ def run_speedtest_with_file(ip_file, dn_count, speed_limit, time_limit):
             "-dn", dn_count,
             "-sl", speed_limit,
             "-tl", time_limit,
+            "-url", DEFAULT_SPEEDTEST_URL,
             "-p", "20"  # 显示前20个结果
         ]
         
@@ -1566,7 +1572,8 @@ def run_speedtest(exec_name, cfcolo, dn_count, speed_limit, time_limit):
         "-dn", dn_count,
         "-sl", speed_limit,
         "-tl", time_limit,
-        "-f", CLOUDFLARE_IP_FILE
+        "-f", CLOUDFLARE_IP_FILE,
+        "-url", DEFAULT_SPEEDTEST_URL
     ])
     
     try:
