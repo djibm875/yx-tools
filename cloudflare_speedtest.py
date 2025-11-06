@@ -13,6 +13,7 @@ import subprocess
 import requests
 import json
 import csv
+import argparse
 from pathlib import Path
 from datetime import datetime
 
@@ -885,11 +886,12 @@ def display_preset_configs():
     print("=" * 60)
 
 
-def get_user_input(ip_file=CLOUDFLARE_IP_FILE):
+def get_user_input(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
     """获取用户输入参数
     
     Args:
         ip_file: 要使用的IP文件路径
+        ip_version: IP版本（"ipv4" 或 "ipv6"）
     """
     # 询问功能选择
     print("\n" + "=" * 60)
@@ -906,13 +908,13 @@ def get_user_input(ip_file=CLOUDFLARE_IP_FILE):
     
     if choice == "1":
         # 小白快速测试模式
-        return handle_beginner_mode(ip_file)
+        return handle_beginner_mode(ip_file, ip_version)
     elif choice == "3":
         # 优选反代模式
         return handle_proxy_mode()
     else:
         # 常规测速模式
-        return handle_normal_mode(ip_file)
+        return handle_normal_mode(ip_file, ip_version)
 
 
 def select_csv_file():
@@ -1101,11 +1103,12 @@ def handle_proxy_mode():
         return None, None, None, None
 
 
-def handle_beginner_mode(ip_file=CLOUDFLARE_IP_FILE):
+def handle_beginner_mode(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
     """处理小白快速测试模式
     
     Args:
         ip_file: 要使用的IP文件路径
+        ip_version: IP版本（"ipv4" 或 "ipv6"）
     """
     print("\n" + "=" * 70)
     print(" 小白快速测试模式")
@@ -1226,17 +1229,30 @@ def handle_beginner_mode(ip_file=CLOUDFLARE_IP_FILE):
         
         # 询问是否上报结果
         upload_results_to_api("result.csv")
+        
+        # 输出对应的命令行命令
+        print("\n" + "=" * 80)
+        print(" 💡 快速复用命令")
+        print("=" * 80)
+        cli_cmd = generate_cli_command("beginner", ip_version, None, dn_count, speed_limit, time_limit)
+        print("本次交互对应的命令行命令：")
+        print("-" * 80)
+        print(cli_cmd)
+        print("-" * 80)
+        print("💡 提示：您可以复制上面的命令，下次直接使用命令行模式运行")
+        print("=" * 80)
     else:
         print("\n❌ 测速失败")
     
     return "ALL", dn_count, speed_limit, time_limit
 
 
-def handle_normal_mode(ip_file=CLOUDFLARE_IP_FILE):
+def handle_normal_mode(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
     """处理常规测速模式
     
     Args:
         ip_file: 要使用的IP文件路径
+        ip_version: IP版本（"ipv4" 或 "ipv6"）
     """
     print("\n开始检测可用地区...")
     print("正在使用HTTPing模式检测各地区可用性...")
@@ -1418,6 +1434,18 @@ def handle_normal_mode(ip_file=CLOUDFLARE_IP_FILE):
                 
                 # 询问是否上报结果
                 upload_results_to_api("result.csv")
+                
+                # 输出对应的命令行命令
+                print("\n" + "=" * 80)
+                print(" 💡 快速复用命令")
+                print("=" * 80)
+                cli_cmd = generate_cli_command("normal", ip_version, cfcolo, dn_count, speed_limit, time_limit)
+                print("本次交互对应的命令行命令：")
+                print("-" * 80)
+                print(cli_cmd)
+                print("-" * 80)
+                print("💡 提示：您可以复制上面的命令，下次直接使用命令行模式运行")
+                print("=" * 80)
             else:
                 print("\n❌ 测速失败")
         else:
@@ -1588,8 +1616,330 @@ def run_speedtest(exec_name, cfcolo, dn_count, speed_limit, time_limit):
         return 1
 
 
+def parse_args():
+    """解析命令行参数"""
+    parser = argparse.ArgumentParser(
+        description='Cloudflare SpeedTest 跨平台自动化脚本',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+示例:
+  # 快速测试模式（默认参数）
+  python cloudflare_speedtest.py --mode beginner
+  
+  # 指定测试参数
+  python cloudflare_speedtest.py --mode beginner --count 20 --speed 2 --delay 500
+  
+  # 常规测速模式（需要先运行地区检测）
+  python cloudflare_speedtest.py --mode normal --region HKG --count 10
+  
+  # 优选反代模式
+  python cloudflare_speedtest.py --mode proxy --csv result.csv
+  
+  # 指定IP版本
+  python cloudflare_speedtest.py --mode beginner --ipv6
+  
+  # 上传结果到API
+  python cloudflare_speedtest.py --mode beginner --upload api --worker-domain example.com --uuid abc123
+  
+  # 上传结果到GitHub
+  python cloudflare_speedtest.py --mode beginner --upload github --repo owner/repo --token ghp_xxx
+        """
+    )
+    
+    # 模式选择（必需参数）
+    parser.add_argument('--mode', choices=['beginner', 'normal', 'proxy'], required=True,
+                       help='运行模式: beginner(小白快速测试), normal(常规测速), proxy(优选反代)')
+    
+    # IP版本
+    parser.add_argument('--ipv6', action='store_true',
+                       help='使用IPv6（默认使用IPv4）')
+    
+    # 测试参数
+    parser.add_argument('--count', type=int, default=10,
+                       help='测试IP数量（默认: 10）')
+    parser.add_argument('--speed', type=float, default=1.0,
+                       help='下载速度下限 MB/s（默认: 1.0）')
+    parser.add_argument('--delay', type=int, default=1000,
+                       help='延迟上限 ms（默认: 1000）')
+    
+    # 常规测速模式参数
+    parser.add_argument('--region', type=str,
+                       help='地区码（常规测速模式需要，例如: HKG, SIN）')
+    
+    # 优选反代模式参数
+    parser.add_argument('--csv', type=str, default='result.csv',
+                       help='CSV文件路径（优选反代模式，默认: result.csv）')
+    
+    # 上传参数
+    parser.add_argument('--upload', choices=['api', 'github', 'none'], default='none',
+                       help='上传方式: api(Cloudflare Workers API), github(GitHub仓库), none(不上传)')
+    
+    # Cloudflare Workers API参数
+    parser.add_argument('--worker-domain', type=str,
+                       help='Worker域名（API上传方式需要）')
+    parser.add_argument('--uuid', type=str,
+                       help='UUID或路径（API上传方式需要）')
+    
+    # GitHub参数
+    parser.add_argument('--repo', type=str,
+                       help='GitHub仓库路径，格式: owner/repo（GitHub上传方式需要）')
+    parser.add_argument('--token', type=str,
+                       help='GitHub Personal Access Token（GitHub上传方式需要）')
+    parser.add_argument('--file-path', type=str, default='cloudflare_ips.txt',
+                       help='GitHub文件路径（默认: cloudflare_ips.txt）')
+    
+    # 其他参数
+    parser.add_argument('--upload-count', type=int, default=10,
+                       help='上传IP数量（默认: 10）')
+    
+    return parser.parse_args()
+
+
+def run_with_args(args):
+    """使用命令行参数运行"""
+    # 设置控制台编码（Windows 兼容）
+    if sys.platform == "win32":
+        try:
+            import codecs
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
+            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
+        except:
+            pass
+    
+    print("=" * 80)
+    print(" Cloudflare SpeedTest 跨平台自动化脚本（命令行模式）")
+    print("=" * 80)
+    
+    # 获取系统信息
+    os_type, arch_type = get_system_info()
+    print(f"\n[系统信息]")
+    print(f"  操作系统: {os_type}")
+    print(f"  架构类型: {arch_type}")
+    print(f"  Python版本: {sys.version.split()[0]}")
+    
+    # 加载本地机场码配置（如果存在）
+    load_local_airport_codes()
+    
+    # 下载 CloudflareSpeedTest
+    print(f"\n[程序准备]")
+    exec_name = download_cloudflare_speedtest(os_type, arch_type)
+    
+    # 选择 IP 版本
+    if args.ipv6:
+        ip_version, ip_file = "ipv6", CLOUDFLARE_IPV6_FILE
+        print("✓ 已选择: IPv6")
+    else:
+        ip_version, ip_file = "ipv4", CLOUDFLARE_IP_FILE
+        print("✓ 已选择: IPv4")
+    
+    # 下载或生成 Cloudflare IP 列表
+    if not download_cloudflare_ips(ip_version, ip_file):
+        print("❌ 准备IP列表失败")
+        return 1
+    
+    # 根据模式运行
+    if args.mode == 'beginner':
+        # 小白快速测试模式
+        print(f"\n[小白快速测试模式]")
+        print(f"  测试IP数量: {args.count}")
+        print(f"  速度下限: {args.speed} MB/s")
+        print(f"  延迟上限: {args.delay} ms")
+        
+        # 构建测速命令
+        if sys.platform == "win32":
+            cmd = [exec_name]
+        else:
+            cmd = [f"./{exec_name}"]
+        
+        cmd.extend([
+            "-f", ip_file,
+            "-dn", str(args.count),
+            "-sl", str(args.speed),
+            "-tl", str(args.delay),
+            "-url", DEFAULT_SPEEDTEST_URL,
+            "-o", "result.csv"
+        ])
+        
+        print(f"\n运行命令: {' '.join(cmd)}")
+        print("=" * 50)
+        
+        result = subprocess.run(cmd, encoding='utf-8', errors='replace')
+        
+        if result.returncode == 0:
+            print("\n✅ 测速完成！结果已保存到 result.csv")
+            
+            # 处理上传
+            if args.upload == 'api':
+                if not args.worker_domain or not args.uuid:
+                    print("❌ API上传需要提供 --worker-domain 和 --uuid 参数")
+                else:
+                    # 调用命令行模式的上传函数
+                    upload_to_cloudflare_api_cli("result.csv", args.worker_domain, args.uuid, args.upload_count)
+            elif args.upload == 'github':
+                if not args.repo or not args.token:
+                    print("❌ GitHub上传需要提供 --repo 和 --token 参数")
+                else:
+                    # 调用命令行模式的上传函数
+                    upload_to_github_cli("result.csv", args.repo, args.token, args.file_path, args.upload_count)
+        else:
+            print("\n❌ 测速失败")
+            return 1
+            
+    elif args.mode == 'normal':
+        # 常规测速模式
+        if not args.region:
+            print("❌ 常规测速模式需要提供 --region 参数（例如: --region HKG）")
+            return 1
+        
+        print(f"\n[常规测速模式]")
+        print(f"  地区码: {args.region}")
+        print(f"  测试IP数量: {args.count}")
+        print(f"  速度下限: {args.speed} MB/s")
+        print(f"  延迟上限: {args.delay} ms")
+        
+        # 检查是否有地区扫描结果
+        if not os.path.exists("region_scan.csv"):
+            print("⚠️  未找到地区扫描结果文件，建议先运行交互式模式进行地区检测")
+            print("   或者使用小白快速测试模式")
+            return 1
+        
+        # 从地区扫描结果中提取该地区的IP
+        region_ips = []
+        with open("region_scan.csv", 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                colo = (row.get('地区码') or '').strip()
+                if colo == args.region:
+                    ip = (row.get('IP 地址') or '').strip()
+                    if ip:
+                        region_ips.append(ip)
+        
+        if not region_ips:
+            print(f"❌ 未找到 {args.region} 地区的IP")
+            return 1
+        
+        # 创建该地区的IP文件
+        region_ip_file = f"{args.region.lower()}_ips.txt"
+        with open(region_ip_file, 'w', encoding='utf-8') as f:
+            for ip in region_ips:
+                f.write(f"{ip}\n")
+        
+        print(f"找到 {len(region_ips)} 个 {args.region} 地区的IP，开始测速...")
+        
+        # 构建测速命令
+        if sys.platform == "win32":
+            cmd = [exec_name]
+        else:
+            cmd = [f"./{exec_name}"]
+        
+        cmd.extend([
+            "-f", region_ip_file,
+            "-dn", str(args.count),
+            "-sl", str(args.speed),
+            "-tl", str(args.delay),
+            "-url", DEFAULT_SPEEDTEST_URL,
+            "-o", "result.csv"
+        ])
+        
+        print(f"\n运行命令: {' '.join(cmd)}")
+        print("=" * 50)
+        
+        result = subprocess.run(cmd, encoding='utf-8', errors='replace')
+        
+        # 清理临时文件
+        if os.path.exists(region_ip_file):
+            os.remove(region_ip_file)
+        
+        if result.returncode == 0:
+            print("\n✅ 测速完成！结果已保存到 result.csv")
+            
+            # 处理上传
+            if args.upload == 'api':
+                if not args.worker_domain or not args.uuid:
+                    print("❌ API上传需要提供 --worker-domain 和 --uuid 参数")
+                else:
+                    # 调用命令行模式的上传函数
+                    upload_to_cloudflare_api_cli("result.csv", args.worker_domain, args.uuid, args.upload_count)
+            elif args.upload == 'github':
+                if not args.repo or not args.token:
+                    print("❌ GitHub上传需要提供 --repo 和 --token 参数")
+                else:
+                    # 调用命令行模式的上传函数
+                    upload_to_github_cli("result.csv", args.repo, args.token, args.file_path, args.upload_count)
+        else:
+            print("\n❌ 测速失败")
+            return 1
+            
+    elif args.mode == 'proxy':
+        # 优选反代模式
+        print(f"\n[优选反代模式]")
+        print(f"  CSV文件: {args.csv}")
+        
+        if not os.path.exists(args.csv):
+            print(f"❌ 未找到CSV文件: {args.csv}")
+            return 1
+        
+        # 生成反代IP列表
+        success = generate_proxy_list(args.csv, "ips_ports.txt")
+        if success:
+            print("\n✅ 优选反代功能完成！")
+            print("  生成的文件: ips_ports.txt")
+        else:
+            print("\n❌ 优选反代功能失败")
+            return 1
+    else:
+        print("❌ 请指定运行模式: --mode beginner/normal/proxy")
+        return 1
+    
+    return 0
+
+
+def generate_cli_command(mode, ip_version, cfcolo=None, dn_count=None, speed_limit=None, time_limit=None):
+    """生成对应的命令行命令"""
+    # 根据系统选择Python命令
+    if sys.platform == "win32":
+        python_cmd = "python"
+    else:
+        python_cmd = "python3"
+    
+    cmd_parts = [python_cmd, "cloudflare_speedtest.py"]
+    
+    # 添加模式
+    if mode == "beginner":
+        cmd_parts.append("--mode beginner")
+    elif mode == "normal":
+        cmd_parts.append("--mode normal")
+    elif mode == "proxy":
+        cmd_parts.append("--mode proxy")
+    
+    # 添加IP版本
+    if ip_version == "ipv6":
+        cmd_parts.append("--ipv6")
+    
+    # 添加参数
+    if dn_count:
+        cmd_parts.append(f"--count {dn_count}")
+    if speed_limit:
+        cmd_parts.append(f"--speed {speed_limit}")
+    if time_limit:
+        cmd_parts.append(f"--delay {time_limit}")
+    
+    # 添加地区码（常规模式）
+    if mode == "normal" and cfcolo:
+        cmd_parts.append(f"--region {cfcolo}")
+    
+    return " ".join(cmd_parts)
+
+
 def main():
     """主函数"""
+    # 检查是否有命令行参数
+    if len(sys.argv) > 1:
+        # 命令行模式
+        args = parse_args()
+        return run_with_args(args)
+    
+    # 交互式模式
     # 设置控制台编码（Windows 兼容）
     if sys.platform == "win32":
         try:
@@ -1639,7 +1989,7 @@ def main():
     print(" 博客 https://joeyblog.net")
     print(" Telegram交流群: https://t.me/+ft-zI76oovgwNmRh")
     print("=" * 60)
-    result = get_user_input(ip_file)
+    result = get_user_input(ip_file, ip_version)
     
     # 检查是否是优选反代模式
     if result == (None, None, None, None):
@@ -1650,10 +2000,8 @@ def main():
             input("按 Enter 键退出...")
         return 0
     
-    cfcolo, dn_count, speed_limit, time_limit = result
-    
-    # 常规测速模式已经在handle_normal_mode中完成测速
-    print(f"\n常规测速已完成")
+    # 常规测速模式和小白快速测试模式已经在各自的函数中完成测速并输出命令
+    print(f"\n测速已完成")
     
     # Windows 系统添加暂停，避免窗口立即关闭
     if sys.platform == "win32":
@@ -1705,12 +2053,11 @@ def clear_config():
 
 
 def upload_results_to_api(result_file="result.csv"):
-    """上报优选结果到 Cloudflare Workers API"""
+    """上报优选结果到 Cloudflare Workers API 或 GitHub"""
     print("\n" + "=" * 70)
     print(" 优选结果上报功能")
     print("=" * 70)
-    print(" 此功能可以将测速结果上报到您的 Cloudflare Workers API")
-    print(" 需要提供您的 Worker 域名和 UUID或者路径")
+    print(" 此功能可以将测速结果上报到您的 Cloudflare Workers API 或 GitHub")
     print("=" * 70)
     
     # 询问是否上报
@@ -1718,6 +2065,34 @@ def upload_results_to_api(result_file="result.csv"):
     if choice not in ['y', 'yes']:
         print("跳过上报")
         return
+    
+    # 选择上传方式
+    print("\n" + "=" * 70)
+    print(" 请选择上传方式")
+    print("=" * 70)
+    print("  1. Cloudflare Workers API")
+    print("  2. GitHub (Gist)")
+    print("=" * 70)
+    
+    while True:
+        upload_method = input("\n请选择上传方式 [1/2]: ").strip()
+        if upload_method == "1":
+            upload_to_cloudflare_api(result_file)
+            break
+        elif upload_method == "2":
+            upload_to_github(result_file)
+            break
+        else:
+            print("✗ 请输入 1 或 2")
+
+
+def upload_to_cloudflare_api(result_file="result.csv"):
+    """上报优选结果到 Cloudflare Workers API"""
+    print("\n" + "=" * 70)
+    print(" Cloudflare Workers API 上报")
+    print("=" * 70)
+    print(" 需要提供您的 Worker 域名和 UUID或者路径")
+    print("=" * 70)
     
     # 检查结果文件是否存在
     if not os.path.exists(result_file):
@@ -2109,6 +2484,759 @@ def upload_results_to_api(result_file="result.csv"):
             print(f"   - 您可以访问 https://{worker_domain}/{uuid} 查看管理页面")
             print(f"   - 优选IP已添加，订阅生成时会自动使用")
             print(f"   - 批量上报速度更快，避免了逐个请求的超时问题")
+        
+    except Exception as e:
+        print(f"❌ 读取测速结果失败: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def upload_to_github(result_file="result.csv"):
+    """上传优选结果到 GitHub 公开仓库"""
+    print("\n" + "=" * 70)
+    print(" GitHub 仓库上传")
+    print("=" * 70)
+    print(" 此功能可以将测速结果上传到 GitHub 公开仓库")
+    print(" 需要提供 GitHub Personal Access Token")
+    print("=" * 70)
+    
+    # 检查结果文件是否存在
+    if not os.path.exists(result_file):
+        print(f"❌ 未找到测速结果文件: {result_file}")
+        print("请先完成测速后再上传结果")
+        return
+    
+    # 获取 GitHub Token
+    print("\n📝 请输入您的 GitHub Personal Access Token")
+    print("提示: 如果没有Token，请访问 https://github.com/settings/tokens 创建")
+    print("     需要 repo 权限")
+    
+    github_token = input("\nGitHub Token: ").strip()
+    if not github_token:
+        print("❌ Token 不能为空")
+        return
+    
+    # 获取仓库信息
+    print("\n📝 请输入仓库信息")
+    print("格式: owner/repo (例如: username/repo-name)")
+    
+    repo_info = input("\n仓库 (owner/repo): ").strip()
+    if not repo_info or '/' not in repo_info:
+        print("❌ 仓库格式不正确，应为 owner/repo")
+        return
+    
+    repo_parts = repo_info.split('/', 1)
+    owner = repo_parts[0]
+    repo = repo_parts[1]
+    
+    # 获取文件路径
+    file_path = input("\n文件路径 [默认: cloudflare_ips.txt]: ").strip()
+    if not file_path:
+        file_path = "cloudflare_ips.txt"
+    
+    # 读取测速结果
+    print("\n📊 正在读取测速结果...")
+    try:
+        best_ips = []
+        with open(result_file, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # 安全获取数据，避免NoneType错误
+                ip = (row.get('IP 地址') or '').strip()
+                port = (row.get('端口') or '').strip()
+                
+                # 尝试多种可能的列名来获取速度
+                speed = ''
+                for speed_key in ['下载速度(MB/s)', '下载速度 (MB/s)', '下载速度']:
+                    if speed_key in row and row[speed_key] is not None:
+                        speed = str(row[speed_key]).strip()
+                        break
+                
+                # 尝试多种可能的列名来获取延迟
+                latency = ''
+                for latency_key in ['平均延迟', '延迟', 'latency']:
+                    if latency_key in row and row[latency_key] is not None:
+                        latency = str(row[latency_key]).strip()
+                        break
+                
+                # 获取地区码
+                region_code = (row.get('地区码') or '').strip()
+                
+                # 如果IP地址中包含端口信息
+                if ip and ':' in ip:
+                    ip_parts = ip.split(':')
+                    if len(ip_parts) == 2:
+                        ip = ip_parts[0]
+                        if not port:
+                            port = ip_parts[1]
+                
+                # 设置默认端口
+                if not port:
+                    port = '443'
+                
+                if ip:
+                    try:
+                        speed_val = float(speed) if speed else 0
+                        latency_val = latency if latency else 'N/A'
+                        
+                        # 获取地区中文名称
+                        region_name = '未知地区'
+                        if region_code and region_code in AIRPORT_CODES:
+                            region_name = AIRPORT_CODES[region_code].get('name', region_code)
+                        elif region_code:
+                            region_name = region_code
+                        
+                        best_ips.append({
+                            'ip': ip,
+                            'port': int(port),
+                            'speed': speed_val,
+                            'latency': latency_val,
+                            'region_code': region_code,
+                            'region_name': region_name
+                        })
+                    except ValueError:
+                        continue
+        
+        if not best_ips:
+            print("❌ 未找到有效的测速结果")
+            return
+        
+        print(f"✅ 找到 {len(best_ips)} 个测速结果")
+        
+        # 询问要上传多少个结果
+        while True:
+            count_input = input(f"\n请输入要上传的IP数量 [默认: 10, 最多: {len(best_ips)}]: ").strip()
+            if not count_input:
+                upload_count = min(10, len(best_ips))
+                break
+            try:
+                upload_count = int(count_input)
+                if upload_count <= 0:
+                    print("✗ 请输入大于0的数字")
+                    continue
+                if upload_count > len(best_ips):
+                    print(f"⚠️  最多只能上传 {len(best_ips)} 个结果")
+                    upload_count = len(best_ips)
+                break
+            except ValueError:
+                print("✗ 请输入有效的数字")
+        
+        # 显示将要上传的IP
+        print(f"\n将上传以下 {upload_count} 个优选IP:")
+        print("-" * 70)
+        for i, ip_info in enumerate(best_ips[:upload_count], 1):
+            region_display = f"{ip_info['region_name']}" if ip_info.get('region_name') else '未知地区'
+            print(f"  {i:2d}. {ip_info['ip']:15s}:{ip_info['port']:<5d} - {ip_info['speed']:.2f} MB/s - {region_display} - 延迟: {ip_info['latency']}")
+        print("-" * 70)
+        
+        # 确认上传
+        confirm = input("\n确认上传以上IP？[Y/n]: ").strip().lower()
+        if confirm in ['n', 'no']:
+            print("取消上传")
+            return
+        
+        # 格式化数据为换行符分隔的格式（包含注释，和Cloudflare Workers API一样）
+        print("\n🚀 开始上传到 GitHub 仓库...")
+        content_lines = []
+        for ip_info in best_ips[:upload_count]:
+            # 构建节点名称：地区名-速度MB/s（和Cloudflare Workers API一样）
+            region_name = ip_info.get('region_name', '未知地区')
+            speed = ip_info['speed']
+            name = f"{region_name}-{speed:.2f}MB/s"
+            # 格式：IP:端口#地区名-速度MB/s（井号前后无空格）
+            content_lines.append(f"{ip_info['ip']}:{ip_info['port']}#{name}")
+        
+        # 使用换行符连接所有行
+        content = '\n'.join(content_lines)
+        
+        # 检查文件是否已存在
+        print(f"\n🔍 正在检查文件是否存在...")
+        file_sha = None
+        try:
+            try:
+                check_response = requests.get(
+                    f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                    headers={
+                        "Authorization": f"token {github_token}",
+                        "Accept": "application/vnd.github.v3+json"
+                    },
+                    timeout=10
+                )
+                if check_response.status_code == 200:
+                    file_data = check_response.json()
+                    file_sha = file_data.get('sha', '')
+                    print(f"⚠️  文件已存在，将更新文件")
+                elif check_response.status_code == 404:
+                    print(f"✅ 文件不存在，将创建新文件")
+                else:
+                    print(f"⚠️  无法检查文件状态，将尝试创建/更新")
+            except ImportError as e:
+                # SSL模块不可用，静默切换到curl
+                if "SSL module is not available" in str(e):
+                    check_response = curl_request(
+                        f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                        method='GET',
+                        headers={
+                            "Authorization": f"token {github_token}",
+                            "Accept": "application/vnd.github.v3+json"
+                        },
+                        timeout=10
+                    )
+                    if check_response.status_code == 200:
+                        file_data = check_response.json()
+                        file_sha = file_data.get('sha', '')
+                        print(f"⚠️  文件已存在，将更新文件")
+                    elif check_response.status_code == 404:
+                        print(f"✅ 文件不存在，将创建新文件")
+                    else:
+                        print(f"⚠️  无法检查文件状态，将尝试创建/更新")
+                else:
+                    raise
+        except Exception as e:
+            print(f"⚠️  检查文件状态失败: {e}，将尝试创建/更新")
+        
+        # 准备上传数据
+        import base64
+        content_bytes = content.encode('utf-8')
+        content_base64 = base64.b64encode(content_bytes).decode('utf-8')
+        
+        upload_data = {
+            "message": f"更新Cloudflare优选IP列表 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "content": content_base64
+        }
+        
+        # 如果文件已存在，需要提供sha
+        if file_sha:
+            upload_data["sha"] = file_sha
+        
+        # 上传到 GitHub 仓库
+        try:
+            try:
+                if file_sha:
+                    # 更新文件
+                    response = requests.put(
+                        f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                        json=upload_data,
+                        headers={
+                            "Authorization": f"token {github_token}",
+                            "Accept": "application/vnd.github.v3+json"
+                        },
+                        timeout=30
+                    )
+                else:
+                    # 创建文件
+                    response = requests.put(
+                        f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                        json=upload_data,
+                        headers={
+                            "Authorization": f"token {github_token}",
+                            "Accept": "application/vnd.github.v3+json"
+                        },
+                        timeout=30
+                    )
+            except ImportError as e:
+                # SSL模块不可用，静默切换到curl
+                if "SSL module is not available" in str(e):
+                    response = curl_request(
+                        f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                        method='PUT',
+                        data=upload_data,
+                        headers={
+                            "Authorization": f"token {github_token}",
+                            "Accept": "application/vnd.github.v3+json"
+                        },
+                        timeout=30
+                    )
+                else:
+                    raise
+            
+            if response and response.status_code in [200, 201]:
+                result = response.json()
+                file_url = result.get('content', {}).get('html_url', '')
+                
+                # 尝试获取默认分支
+                default_branch = "main"  # 默认使用main分支
+                try:
+                    try:
+                        repo_response = requests.get(
+                            f"https://api.github.com/repos/{owner}/{repo}",
+                            headers={
+                                "Authorization": f"token {github_token}",
+                                "Accept": "application/vnd.github.v3+json"
+                            },
+                            timeout=10
+                        )
+                        if repo_response.status_code == 200:
+                            repo_data = repo_response.json()
+                            default_branch = repo_data.get('default_branch', 'main')
+                    except:
+                        pass
+                except:
+                    pass
+                
+                raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}/{file_path}"
+                
+                print("\n" + "=" * 70)
+                print(" ✅ 上传成功！")
+                print("=" * 70)
+                print(f"  仓库地址: https://github.com/{owner}/{repo}")
+                if file_url:
+                    print(f"  文件地址: {file_url}")
+                print(f"  原始文件地址: {raw_url}")
+                print(f"  上传数量: {upload_count} 个IP")
+                print("=" * 70)
+                
+                print(f"\n💡 提示:")
+                print(f"   - 您可以使用原始文件地址直接访问IP列表")
+                print(f"   - 文件格式为换行符分隔，每行一个 IP:端口#地区名-速度MB/s")
+                print(f"   - 您可以在GitHub上管理这个仓库")
+            elif response and response.status_code == 401:
+                print(f"❌ 认证失败！请检查：")
+                print(f"   1. GitHub Token 是否正确")
+                print(f"   2. Token 是否具有 repo 权限")
+            elif response and response.status_code == 404:
+                print(f"❌ 仓库不存在或无权限！请检查：")
+                print(f"   1. 仓库路径是否正确: {owner}/{repo}")
+                print(f"   2. Token 是否有该仓库的写入权限")
+            elif response:
+                print(f"❌ 上传失败 (HTTP {response.status_code})")
+                try:
+                    error_detail = response.json()
+                    print(f"   错误详情: {error_detail.get('message', '无详情')}")
+                except:
+                    pass
+        except requests.exceptions.Timeout:
+            print(f"❌ 请求超时，请检查网络连接")
+            print(f"   建议：检查网络连接或稍后重试")
+        except requests.exceptions.RequestException as e:
+            print(f"❌ 网络错误: {e}")
+            print(f"   建议：检查网络连接或GitHub API地址是否正确")
+        except Exception as e:
+            print(f"❌ 上传失败: {e}")
+            print(f"   建议：检查配置是否正确，或联系技术支持")
+        
+    except Exception as e:
+        print(f"❌ 读取测速结果失败: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def upload_to_cloudflare_api_cli(result_file="result.csv", worker_domain=None, uuid=None, upload_count=10):
+    """命令行模式：上报优选结果到 Cloudflare Workers API"""
+    print("\n" + "=" * 70)
+    print(" 命令行模式：Cloudflare Workers API 上报")
+    print("=" * 70)
+    
+    # 检查结果文件是否存在
+    if not os.path.exists(result_file):
+        print(f"❌ 未找到测速结果文件: {result_file}")
+        return
+    
+    # 构建 API URL
+    api_url = f"https://{worker_domain}/{uuid}/api/preferred-ips"
+    
+    # 读取测速结果
+    print("\n📊 正在读取测速结果...")
+    try:
+        best_ips = []
+        with open(result_file, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # 安全获取数据，避免NoneType错误
+                ip = (row.get('IP 地址') or '').strip()
+                port = (row.get('端口') or '').strip()
+                
+                # 尝试多种可能的列名来获取速度
+                speed = ''
+                for speed_key in ['下载速度(MB/s)', '下载速度 (MB/s)', '下载速度']:
+                    if speed_key in row and row[speed_key] is not None:
+                        speed = str(row[speed_key]).strip()
+                        break
+                
+                # 尝试多种可能的列名来获取延迟
+                latency = ''
+                for latency_key in ['平均延迟', '延迟', 'latency']:
+                    if latency_key in row and row[latency_key] is not None:
+                        latency = str(row[latency_key]).strip()
+                        break
+                
+                # 获取地区码
+                region_code = (row.get('地区码') or '').strip()
+                
+                # 如果IP地址中包含端口信息
+                if ip and ':' in ip:
+                    ip_parts = ip.split(':')
+                    if len(ip_parts) == 2:
+                        ip = ip_parts[0]
+                        if not port:
+                            port = ip_parts[1]
+                
+                # 设置默认端口
+                if not port:
+                    port = '443'
+                
+                if ip:
+                    try:
+                        speed_val = float(speed) if speed else 0
+                        latency_val = latency if latency else 'N/A'
+                        
+                        # 获取地区中文名称
+                        region_name = '未知地区'
+                        if region_code and region_code in AIRPORT_CODES:
+                            region_name = AIRPORT_CODES[region_code].get('name', region_code)
+                        elif region_code:
+                            region_name = region_code
+                        
+                        best_ips.append({
+                            'ip': ip,
+                            'port': int(port),
+                            'speed': speed_val,
+                            'latency': latency_val,
+                            'region_code': region_code,
+                            'region_name': region_name
+                        })
+                    except ValueError:
+                        continue
+        
+        if not best_ips:
+            print("❌ 未找到有效的测速结果")
+            return
+        
+        # 限制上传数量
+        upload_count = min(upload_count, len(best_ips))
+        print(f"✅ 找到 {len(best_ips)} 个测速结果，将上传前 {upload_count} 个")
+        
+        # 构建批量上报数据
+        print("\n🚀 开始批量上报优选IP...")
+        batch_data = []
+        for ip_info in best_ips[:upload_count]:
+            # 构建节点名称：地区名-速度MB/s
+            region_name = ip_info.get('region_name', '未知地区')
+            speed = ip_info['speed']
+            name = f"{region_name}-{speed:.2f}MB/s"
+            
+            batch_data.append({
+                "ip": ip_info['ip'],
+                "port": ip_info['port'],
+                "name": name
+            })
+        
+        # 发送批量POST请求
+        try:
+            try:
+                response = requests.post(
+                    api_url,
+                    json=batch_data,
+                    headers={"Content-Type": "application/json"},
+                    timeout=30
+                )
+            except ImportError as e:
+                # SSL模块不可用，静默切换到curl备用方案
+                if "SSL module is not available" in str(e):
+                    response = curl_request(
+                        api_url,
+                        method='POST',
+                        data=batch_data,
+                        headers={"Content-Type": "application/json"},
+                        timeout=30
+                    )
+                else:
+                    raise
+            
+            # 处理响应
+            if response and response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    success_count = result.get('added', 0)
+                    fail_count = result.get('failed', 0)
+                    skipped_count = result.get('skipped', 0)
+                    
+                    print("\n" + "=" * 70)
+                    print(" ✅ 批量上报完成！")
+                    print("=" * 70)
+                    print(f"  ✅ 成功添加: {success_count} 个")
+                    if skipped_count > 0:
+                        print(f"  ⚠️  跳过重复: {skipped_count} 个")
+                    if fail_count > 0:
+                        print(f"  ❌ 失败: {fail_count} 个")
+                    print(f"  📊 总计: {upload_count} 个")
+                    print("=" * 70)
+                else:
+                    print(f"❌ 批量上报失败: {result.get('error', '未知错误')}")
+            elif response and response.status_code == 403:
+                print(f"❌ 认证失败！请检查：")
+                print(f"   1. UUID或者路径是否正确")
+                print(f"   2. 是否在配置页面开启了 'API管理' 功能")
+            elif response:
+                print(f"❌ 批量上报失败 (HTTP {response.status_code})")
+                try:
+                    error_detail = response.json()
+                    print(f"   错误详情: {error_detail.get('error', '无详情')}")
+                except:
+                    pass
+                
+        except requests.exceptions.Timeout:
+            print(f"❌ 请求超时，请检查网络连接")
+        except requests.exceptions.RequestException as e:
+            print(f"❌ 网络错误: {e}")
+        except Exception as e:
+            print(f"❌ 请求失败: {e}")
+        
+    except Exception as e:
+        print(f"❌ 读取测速结果失败: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def upload_to_github_cli(result_file="result.csv", repo_info=None, github_token=None, file_path="cloudflare_ips.txt", upload_count=10):
+    """命令行模式：上传优选结果到 GitHub 公开仓库"""
+    print("\n" + "=" * 70)
+    print(" 命令行模式：GitHub 仓库上传")
+    print("=" * 70)
+    
+    # 检查结果文件是否存在
+    if not os.path.exists(result_file):
+        print(f"❌ 未找到测速结果文件: {result_file}")
+        return
+    
+    # 解析仓库信息
+    if not repo_info or '/' not in repo_info:
+        print("❌ 仓库格式不正确，应为 owner/repo")
+        return
+    
+    repo_parts = repo_info.split('/', 1)
+    owner = repo_parts[0]
+    repo = repo_parts[1]
+    
+    # 读取测速结果
+    print("\n📊 正在读取测速结果...")
+    try:
+        best_ips = []
+        with open(result_file, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # 安全获取数据，避免NoneType错误
+                ip = (row.get('IP 地址') or '').strip()
+                port = (row.get('端口') or '').strip()
+                
+                # 尝试多种可能的列名来获取速度
+                speed = ''
+                for speed_key in ['下载速度(MB/s)', '下载速度 (MB/s)', '下载速度']:
+                    if speed_key in row and row[speed_key] is not None:
+                        speed = str(row[speed_key]).strip()
+                        break
+                
+                # 尝试多种可能的列名来获取延迟
+                latency = ''
+                for latency_key in ['平均延迟', '延迟', 'latency']:
+                    if latency_key in row and row[latency_key] is not None:
+                        latency = str(row[latency_key]).strip()
+                        break
+                
+                # 获取地区码
+                region_code = (row.get('地区码') or '').strip()
+                
+                # 如果IP地址中包含端口信息
+                if ip and ':' in ip:
+                    ip_parts = ip.split(':')
+                    if len(ip_parts) == 2:
+                        ip = ip_parts[0]
+                        if not port:
+                            port = ip_parts[1]
+                
+                # 设置默认端口
+                if not port:
+                    port = '443'
+                
+                if ip:
+                    try:
+                        speed_val = float(speed) if speed else 0
+                        latency_val = latency if latency else 'N/A'
+                        
+                        # 获取地区中文名称
+                        region_name = '未知地区'
+                        if region_code and region_code in AIRPORT_CODES:
+                            region_name = AIRPORT_CODES[region_code].get('name', region_code)
+                        elif region_code:
+                            region_name = region_code
+                        
+                        best_ips.append({
+                            'ip': ip,
+                            'port': int(port),
+                            'speed': speed_val,
+                            'latency': latency_val,
+                            'region_code': region_code,
+                            'region_name': region_name
+                        })
+                    except ValueError:
+                        continue
+        
+        if not best_ips:
+            print("❌ 未找到有效的测速结果")
+            return
+        
+        # 限制上传数量
+        upload_count = min(upload_count, len(best_ips))
+        print(f"✅ 找到 {len(best_ips)} 个测速结果，将上传前 {upload_count} 个")
+        
+        # 格式化数据为换行符分隔的格式（包含注释，和Cloudflare Workers API一样）
+        print("\n🚀 开始上传到 GitHub 仓库...")
+        content_lines = []
+        for ip_info in best_ips[:upload_count]:
+            # 构建节点名称：地区名-速度MB/s（和Cloudflare Workers API一样）
+            region_name = ip_info.get('region_name', '未知地区')
+            speed = ip_info['speed']
+            name = f"{region_name}-{speed:.2f}MB/s"
+            # 格式：IP:端口#地区名-速度MB/s（井号前后无空格）
+            content_lines.append(f"{ip_info['ip']}:{ip_info['port']}#{name}")
+        
+        # 使用换行符连接所有行
+        content = '\n'.join(content_lines)
+        
+        # 检查文件是否已存在
+        print(f"\n🔍 正在检查文件是否存在...")
+        file_sha = None
+        try:
+            try:
+                check_response = requests.get(
+                    f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                    headers={
+                        "Authorization": f"token {github_token}",
+                        "Accept": "application/vnd.github.v3+json"
+                    },
+                    timeout=10
+                )
+                if check_response.status_code == 200:
+                    file_data = check_response.json()
+                    file_sha = file_data.get('sha', '')
+                    print(f"⚠️  文件已存在，将更新文件")
+                elif check_response.status_code == 404:
+                    print(f"✅ 文件不存在，将创建新文件")
+                else:
+                    print(f"⚠️  无法检查文件状态，将尝试创建/更新")
+            except ImportError as e:
+                # SSL模块不可用，静默切换到curl
+                if "SSL module is not available" in str(e):
+                    check_response = curl_request(
+                        f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                        method='GET',
+                        headers={
+                            "Authorization": f"token {github_token}",
+                            "Accept": "application/vnd.github.v3+json"
+                        },
+                        timeout=10
+                    )
+                    if check_response.status_code == 200:
+                        file_data = check_response.json()
+                        file_sha = file_data.get('sha', '')
+                        print(f"⚠️  文件已存在，将更新文件")
+                    elif check_response.status_code == 404:
+                        print(f"✅ 文件不存在，将创建新文件")
+                    else:
+                        print(f"⚠️  无法检查文件状态，将尝试创建/更新")
+                else:
+                    raise
+        except Exception as e:
+            print(f"⚠️  检查文件状态失败: {e}，将尝试创建/更新")
+        
+        # 准备上传数据
+        import base64
+        content_bytes = content.encode('utf-8')
+        content_base64 = base64.b64encode(content_bytes).decode('utf-8')
+        
+        upload_data = {
+            "message": f"更新Cloudflare优选IP列表 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "content": content_base64
+        }
+        
+        # 如果文件已存在，需要提供sha
+        if file_sha:
+            upload_data["sha"] = file_sha
+        
+        # 上传到 GitHub 仓库
+        try:
+            try:
+                response = requests.put(
+                    f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                    json=upload_data,
+                    headers={
+                        "Authorization": f"token {github_token}",
+                        "Accept": "application/vnd.github.v3+json"
+                    },
+                    timeout=30
+                )
+            except ImportError as e:
+                # SSL模块不可用，静默切换到curl
+                if "SSL module is not available" in str(e):
+                    response = curl_request(
+                        f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                        method='PUT',
+                        data=upload_data,
+                        headers={
+                            "Authorization": f"token {github_token}",
+                            "Accept": "application/vnd.github.v3+json"
+                        },
+                        timeout=30
+                    )
+                else:
+                    raise
+            
+            if response and response.status_code in [200, 201]:
+                result = response.json()
+                file_url = result.get('content', {}).get('html_url', '')
+                
+                # 尝试获取默认分支
+                default_branch = "main"  # 默认使用main分支
+                try:
+                    try:
+                        repo_response = requests.get(
+                            f"https://api.github.com/repos/{owner}/{repo}",
+                            headers={
+                                "Authorization": f"token {github_token}",
+                                "Accept": "application/vnd.github.v3+json"
+                            },
+                            timeout=10
+                        )
+                        if repo_response.status_code == 200:
+                            repo_data = repo_response.json()
+                            default_branch = repo_data.get('default_branch', 'main')
+                    except:
+                        pass
+                except:
+                    pass
+                
+                raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}/{file_path}"
+                
+                print("\n" + "=" * 70)
+                print(" ✅ 上传成功！")
+                print("=" * 70)
+                print(f"  仓库地址: https://github.com/{owner}/{repo}")
+                if file_url:
+                    print(f"  文件地址: {file_url}")
+                print(f"  原始文件地址: {raw_url}")
+                print(f"  上传数量: {upload_count} 个IP")
+                print("=" * 70)
+            elif response and response.status_code == 401:
+                print(f"❌ 认证失败！请检查：")
+                print(f"   1. GitHub Token 是否正确")
+                print(f"   2. Token 是否具有 repo 权限")
+            elif response and response.status_code == 404:
+                print(f"❌ 仓库不存在或无权限！请检查：")
+                print(f"   1. 仓库路径是否正确: {owner}/{repo}")
+                print(f"   2. Token 是否有该仓库的写入权限")
+            elif response:
+                print(f"❌ 上传失败 (HTTP {response.status_code})")
+                try:
+                    error_detail = response.json()
+                    print(f"   错误详情: {error_detail.get('message', '无详情')}")
+                except:
+                    pass
+        except requests.exceptions.Timeout:
+            print(f"❌ 请求超时，请检查网络连接")
+        except requests.exceptions.RequestException as e:
+            print(f"❌ 网络错误: {e}")
+        except Exception as e:
+            print(f"❌ 上传失败: {e}")
         
     except Exception as e:
         print(f"❌ 读取测速结果失败: {e}")
