@@ -1,6 +1,6 @@
 # Cloudflare SpeedTest 跨平台自动化工具
 
-[![Version](https://img.shields.io/badge/Version-2.2.2-blue.svg)](https://github.com/byJoey/yx-tools)
+[![Version](https://img.shields.io/badge/Version-2.2.3-blue.svg)](https://github.com/byJoey/yx-tools)
 [![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://python.org)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
