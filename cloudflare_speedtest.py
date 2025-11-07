@@ -352,6 +352,9 @@ GITHUB_REPO = "XIU2/CloudflareSpeedTest"
 # 配置文件路径
 CONFIG_FILE = ".cloudflare_speedtest_config.json"
 
+# 保存交互模式下生成的命令（用于定时任务）
+LAST_GENERATED_COMMAND = None
+
 
 def generate_ipv6_file():
     """生成 IPv6 地址列表文件"""
@@ -1235,6 +1238,9 @@ def handle_beginner_mode(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
         print(" 💡 快速复用命令")
         print("=" * 80)
         cli_cmd = generate_cli_command("beginner", ip_version, None, dn_count, speed_limit, time_limit, upload_info)
+        # 保存命令供定时任务使用
+        global LAST_GENERATED_COMMAND
+        LAST_GENERATED_COMMAND = cli_cmd
         print("本次交互对应的命令行命令：")
         print("-" * 80)
         print(cli_cmd)
@@ -1440,6 +1446,9 @@ def handle_normal_mode(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
                 print(" 💡 快速复用命令")
                 print("=" * 80)
                 cli_cmd = generate_cli_command("normal", ip_version, cfcolo, dn_count, speed_limit, time_limit, upload_info)
+                # 保存命令供定时任务使用
+                global LAST_GENERATED_COMMAND
+                LAST_GENERATED_COMMAND = cli_cmd
                 print("本次交互对应的命令行命令：")
                 print("-" * 80)
                 print(cli_cmd)
@@ -1907,13 +1916,22 @@ def generate_cli_command(mode, ip_version, cfcolo=None, dn_count=None, speed_lim
             - repo_info: 仓库信息 owner/repo (github方式)
             - file_path: 文件路径 (github方式)
     """
-    # 根据系统选择Python命令
-    if sys.platform == "win32":
-        python_cmd = "python"
-    else:
-        python_cmd = "python3"
+    # 获取实际的应用名（可能是封装后的可执行文件或改名的.py文件）
+    import os
+    script_path = os.path.abspath(sys.argv[0])  # 使用绝对路径
+    app_name = os.path.basename(script_path)
     
-    cmd_parts = [python_cmd, "cloudflare_speedtest.py"]
+    # 判断是否是Python脚本（.py文件）还是封装后的可执行文件
+    if app_name.endswith('.py'):
+        # Python脚本，需要python/python3命令，使用绝对路径
+        if sys.platform == "win32":
+            python_cmd = "python"
+        else:
+            python_cmd = "python3"
+        cmd_parts = [python_cmd, script_path]
+    else:
+        # 封装后的可执行文件，使用绝对路径
+        cmd_parts = [script_path]
     
     # 添加模式
     if mode == "beginner":
@@ -2036,12 +2054,224 @@ def main():
     # 常规测速模式和小白快速测试模式已经在各自的函数中完成测速并输出命令
     print(f"\n测速已完成")
     
+    # Linux/OpenWrt 环境询问是否设置定时任务
+    if sys.platform.startswith('linux'):
+        setup_cron_job()
+    
     # Windows 系统添加暂停，避免窗口立即关闭
     if sys.platform == "win32":
         print("\n" + "=" * 60)
         input("按 Enter 键退出...")
     
     return 0
+
+
+def is_openwrt():
+    """检测是否是OpenWrt系统"""
+    try:
+        # 检查是否存在OpenWrt特有的文件
+        if os.path.exists('/etc/openwrt_release'):
+            return True
+        # 检查uname输出
+        result = subprocess.run(['uname', '-a'], capture_output=True, text=True, encoding='utf-8', errors='replace')
+        if result.returncode == 0 and 'openwrt' in result.stdout.lower():
+            return True
+    except:
+        pass
+    return False
+
+
+def get_current_command():
+    """获取本次运行的完整命令（用于定时任务，使用绝对路径）"""
+    import os
+    
+    # 获取脚本的绝对路径
+    script_path = os.path.abspath(sys.argv[0])
+    app_name = os.path.basename(script_path)
+    
+    # 如果是命令行模式，从sys.argv重新构建命令
+    if len(sys.argv) > 1:
+        if app_name.endswith('.py'):
+            if sys.platform == "win32":
+                python_cmd = "python"
+            else:
+                python_cmd = "python3"
+            # 使用绝对路径
+            cmd_parts = [python_cmd, script_path] + sys.argv[1:]
+        else:
+            # 使用绝对路径
+            cmd_parts = [script_path] + sys.argv[1:]
+        return ' '.join(cmd_parts)
+    
+    # 交互模式下，返回None（需要从其他地方获取）
+    return None
+
+
+def check_existing_cron_jobs(command_pattern=None):
+    """检查crontab中是否已有类似的任务"""
+    try:
+        # 获取当前用户的crontab
+        result = subprocess.run(['crontab', '-l'], capture_output=True, text=True, encoding='utf-8', errors='replace')
+        if result.returncode != 0:
+            # 没有crontab或出错
+            return []
+        
+        existing_jobs = []
+        lines = result.stdout.strip().split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            # 跳过注释和空行
+            if not line or line.startswith('#'):
+                continue
+            
+            # 检查是否包含应用名
+            app_name = os.path.basename(sys.argv[0])
+            if app_name in line or (command_pattern and command_pattern in line):
+                existing_jobs.append(line)
+        
+        return existing_jobs
+    except Exception as e:
+        print(f"⚠️  检查crontab失败: {e}")
+        return []
+
+
+def setup_cron_job():
+    """设置定时任务"""
+    print("\n" + "=" * 70)
+    print(" 定时任务设置")
+    print("=" * 70)
+    
+    # 检测是否是OpenWrt
+    is_openwrt_system = is_openwrt()
+    system_type = "OpenWrt" if is_openwrt_system else "Linux"
+    print(f"检测到 {system_type} 环境，可以设置定时任务")
+    
+    # 询问是否要设置定时任务
+    choice = input("\n是否要设置定时任务？[y/N]: ").strip().lower()
+    if choice not in ['y', 'yes']:
+        print("跳过设置定时任务")
+        return
+    
+    # 获取本次运行的命令
+    current_command = get_current_command()
+    
+    # 如果是交互模式，从保存的命令中获取
+    if not current_command:
+        global LAST_GENERATED_COMMAND
+        if LAST_GENERATED_COMMAND:
+            # generate_cli_command已经使用绝对路径，直接使用
+            current_command = LAST_GENERATED_COMMAND
+        else:
+            print("⚠️  无法获取本次运行的命令，请手动设置定时任务")
+            print("   您可以使用 'crontab -e' 手动编辑定时任务")
+            return
+    
+    # 检查是否已有类似的任务
+    app_name = os.path.basename(sys.argv[0])
+    existing_jobs = check_existing_cron_jobs(app_name)
+    
+    if existing_jobs:
+        print(f"\n⚠️  检测到已存在 {len(existing_jobs)} 个类似的定时任务：")
+        for i, job in enumerate(existing_jobs, 1):
+            print(f"  {i}. {job}")
+        
+        print("\n请选择操作：")
+        print("  1. 清理现有任务后添加新任务")
+        print("  2. 继续添加新任务（保留现有任务）")
+        print("  3. 取消设置")
+        
+        while True:
+            choice = input("\n请选择 [1/2/3]: ").strip()
+            if choice == "1":
+                should_clear = True
+                break
+            elif choice == "2":
+                should_clear = False
+                break
+            elif choice == "3":
+                print("取消设置定时任务")
+                return
+            else:
+                print("✗ 请输入 1、2 或 3")
+    else:
+        should_clear = False
+    
+    # 获取cron时间表达式
+    print("\n" + "=" * 70)
+    print(" 设置定时任务时间")
+    print("=" * 70)
+    print("Cron时间格式: 分 时 日 月 周")
+    print("示例:")
+    print("  每天凌晨2点: 0 2 * * *")
+    print("  每小时: 0 * * * *")
+    print("  每30分钟: */30 * * * *")
+    print("  每周一凌晨3点: 0 3 * * 1")
+    print("  每月1号凌晨1点: 0 1 1 * *")
+    print("=" * 70)
+    
+    while True:
+        cron_time = input("\n请输入Cron时间表达式 [例如: 0 2 * * *]: ").strip()
+        if not cron_time:
+            print("✗ 时间表达式不能为空")
+            continue
+        
+        # 验证cron时间格式（简单验证）
+        parts = cron_time.split()
+        if len(parts) != 5:
+            print("✗ Cron时间格式错误，应为5个字段（分 时 日 月 周）")
+            continue
+        
+        # 确认时间表达式
+        print(f"\n您设置的时间表达式: {cron_time}")
+        confirm = input("确认使用此时间？[Y/n]: ").strip().lower()
+        if confirm not in ['n', 'no']:
+            break
+    
+    # 构建cron任务
+    cron_line = f"{cron_time} {current_command}"
+    
+    try:
+        # 读取现有crontab
+        result = subprocess.run(['crontab', '-l'], capture_output=True, text=True, encoding='utf-8', errors='replace')
+        existing_crontab = ""
+        if result.returncode == 0:
+            existing_crontab = result.stdout
+        
+        # 如果需要清理，移除类似的任务
+        if should_clear:
+            lines = existing_crontab.strip().split('\n')
+            filtered_lines = []
+            for line in lines:
+                if app_name not in line:
+                    filtered_lines.append(line)
+            existing_crontab = '\n'.join(filtered_lines)
+            if existing_crontab and not existing_crontab.endswith('\n'):
+                existing_crontab += '\n'
+        
+        # 添加新任务
+        new_crontab = existing_crontab
+        if new_crontab and not new_crontab.endswith('\n'):
+            new_crontab += '\n'
+        new_crontab += f"# Cloudflare SpeedTest 定时任务 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        new_crontab += f"{cron_line}\n"
+        
+        # 写入crontab
+        process = subprocess.Popen(['crontab', '-'], stdin=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
+        process.communicate(input=new_crontab)
+        
+        if process.returncode == 0:
+            print("\n✅ 定时任务设置成功！")
+            print(f"任务: {cron_line}")
+            print("\n💡 提示:")
+            print("  - 使用 'crontab -l' 查看所有定时任务")
+            print("  - 使用 'crontab -e' 编辑定时任务")
+            print("  - 使用 'crontab -r' 删除所有定时任务")
+        else:
+            print("❌ 设置定时任务失败")
+    except Exception as e:
+        print(f"❌ 设置定时任务失败: {e}")
+        print("   请手动使用 'crontab -e' 编辑定时任务")
 
 
 def load_config():
