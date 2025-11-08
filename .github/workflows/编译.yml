@@ -29,6 +29,12 @@ jobs:
             arch: amd64
             ext: ''
             
+          # Linux ARM64
+          - os: ubuntu-latest
+            platform: linux
+            arch: arm64
+            ext: ''
+            
           # macOS Intel
           - os: macos-13
             platform: macos
@@ -177,10 +183,17 @@ jobs:
           
           # 下载对应的 CloudflareST_proxy 可执行文件
           if [ "${{ matrix.platform }}" = "linux" ]; then
-            curl -L -o CloudflareST_proxy_linux_amd64.tar.gz https://github.com/byJoey/CloudflareSpeedTest/releases/download/v1.0/CloudflareST_proxy_linux_amd64.tar.gz
-            tar -xzf CloudflareST_proxy_linux_amd64.tar.gz
-            cp CloudflareST_proxy_linux_amd64 $PACKAGE_NAME/
-            chmod +x $PACKAGE_NAME/CloudflareST_proxy_linux_amd64
+            if [ "${{ matrix.arch }}" = "amd64" ]; then
+              curl -L -o CloudflareST_proxy_linux_amd64.tar.gz https://github.com/byJoey/CloudflareSpeedTest/releases/download/v1.0/CloudflareST_proxy_linux_amd64.tar.gz
+              tar -xzf CloudflareST_proxy_linux_amd64.tar.gz
+              cp CloudflareST_proxy_linux_amd64 $PACKAGE_NAME/
+              chmod +x $PACKAGE_NAME/CloudflareST_proxy_linux_amd64
+            else
+              curl -L -o CloudflareST_proxy_linux_arm64.tar.gz https://github.com/byJoey/CloudflareSpeedTest/releases/download/v1.0/CloudflareST_proxy_linux_arm64.tar.gz
+              tar -xzf CloudflareST_proxy_linux_arm64.tar.gz
+              cp CloudflareST_proxy_linux_arm64 $PACKAGE_NAME/
+              chmod +x $PACKAGE_NAME/CloudflareST_proxy_linux_arm64
+            fi
           elif [ "${{ matrix.platform }}" = "macos" ]; then
             if [ "${{ matrix.arch }}" = "amd64" ]; then
               curl -L -o CloudflareST_proxy_darwin_amd64.zip https://github.com/byJoey/CloudflareSpeedTest/releases/download/v1.0/CloudflareST_proxy_darwin_amd64.zip
@@ -285,10 +298,12 @@ jobs:
           files: |
             artifacts/CloudflareSpeedTest-windows-amd64/CloudflareSpeedTest-windows-amd64.exe
             artifacts/CloudflareSpeedTest-linux-amd64/CloudflareSpeedTest-linux-amd64
+            artifacts/CloudflareSpeedTest-linux-arm64/CloudflareSpeedTest-linux-arm64
             artifacts/CloudflareSpeedTest-macos-amd64/CloudflareSpeedTest-macos-amd64
             artifacts/CloudflareSpeedTest-macos-arm64/CloudflareSpeedTest-macos-arm64
             artifacts/Beginner-Edition-windows-amd64/CloudflareSpeedTest-Beginner-For-Newbies-windows-amd64.zip
             artifacts/Beginner-Edition-linux-amd64/CloudflareSpeedTest-Beginner-For-Newbies-linux-amd64.tar.gz
+            artifacts/Beginner-Edition-linux-arm64/CloudflareSpeedTest-Beginner-For-Newbies-linux-arm64.tar.gz
             artifacts/Beginner-Edition-macos-amd64/CloudflareSpeedTest-Beginner-For-Newbies-macos-amd64.tar.gz
             artifacts/Beginner-Edition-macos-arm64/CloudflareSpeedTest-Beginner-For-Newbies-macos-arm64.tar.gz
           draft: false
@@ -300,12 +315,14 @@ jobs:
             ### 📦 标准版本（适合有经验用户）
             - **Windows (x64)**: CloudflareSpeedTest-windows-amd64.exe
             - **Linux (x64)**: CloudflareSpeedTest-linux-amd64
+            - **Linux (ARM64)**: CloudflareSpeedTest-linux-arm64
             - **macOS (Intel)**: CloudflareSpeedTest-macos-amd64
             - **macOS (Apple Silicon)**: CloudflareSpeedTest-macos-arm64
             
             ### 🎯 小白专用版（推荐新手使用）
             - **Windows (x64)**: CloudflareSpeedTest-Beginner-For-Newbies-windows-amd64.zip
             - **Linux (x64)**: CloudflareSpeedTest-Beginner-For-Newbies-linux-amd64.tar.gz
+            - **Linux (ARM64)**: CloudflareSpeedTest-Beginner-For-Newbies-linux-arm64.tar.gz
             - **macOS (Intel)**: CloudflareSpeedTest-Beginner-For-Newbies-macos-amd64.tar.gz
             - **macOS (Apple Silicon)**: CloudflareSpeedTest-Beginner-For-Newbies-macos-arm64.tar.gz
             
@@ -333,4 +350,3 @@ jobs:
             2. 双击运行（Windows）或赋予执行权限（Linux/macOS）
             3. 按提示选择机场码和测试配置
             4. 等待测速完成，查看 result.csv 结果文件
-
