@@ -27,8 +27,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 复制项目文件
 COPY cloudflare_speedtest.py .
-COPY CloudflareSpeedTest-master/build/CloudflareST_proxy_linux_amd64 /app/CloudflareST_proxy_linux_amd64
-COPY CloudflareSpeedTest-master/build/CloudflareST_proxy_linux_arm64 /app/CloudflareST_proxy_linux_arm64
+
+COPY CloudflareST_proxy_linux_amd64 /app/CloudflareST_proxy_linux_amd64
+COPY CloudflareST_proxy_linux_arm64 /app/CloudflareST_proxy_linux_arm64
 
 # 赋予可执行文件执行权限
 RUN chmod +x /app/CloudflareST_proxy_linux_amd64 \
