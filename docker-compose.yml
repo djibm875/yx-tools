@@ -18,7 +18,10 @@ services:
     environment:
       - TZ=Asia/Shanghai
       - PYTHONUNBUFFERED=1
-    # 保持容器运行（用于交互模式）
+      # 定时任务配置（可选）
+      # - CRON_SCHEDULE=0 2 * * *  # 每天凌晨2点
+      # - CRON_COMMAND=python3 /app/cloudflare_speedtest.py --mode beginner --count 10 --speed 1 --delay 1000
+    # 保持容器运行（用于定时任务）
     stdin_open: true
     tty: true
     # 重启策略
