@@ -1,6 +1,24 @@
 #!/bin/bash
 set -e
 
+# Crontab持久化文件路径
+CRONTAB_FILE="/app/config/crontab"
+
+# 恢复crontab（如果存在）
+if [ -f "$CRONTAB_FILE" ]; then
+    echo "检测到已保存的定时任务，正在恢复..."
+    crontab "$CRONTAB_FILE"
+    echo "定时任务已恢复"
+fi
+
+# 保存crontab的函数
+save_crontab() {
+    if [ -d "/app/config" ]; then
+        crontab -l > "$CRONTAB_FILE" 2>/dev/null || true
+        echo "定时任务已保存到 $CRONTAB_FILE"
+    fi
+}
+
 # 如果提供了命令参数，直接执行
 if [ $# -gt 0 ]; then
     exec "$@"
@@ -16,6 +34,9 @@ if [ -n "$CRON_SCHEDULE" ] && [ -n "$CRON_COMMAND" ]; then
     # 设置定时任务
     (crontab -l 2>/dev/null || true; echo "$CRON_SCHEDULE $CRON_COMMAND") | crontab -
     echo "定时任务已设置: $CRON_SCHEDULE $CRON_COMMAND"
+    
+    # 保存crontab
+    save_crontab
     
     # 显示当前cron任务
     echo "当前定时任务："
@@ -39,14 +60,28 @@ else
         # 启动cron服务
         service cron start
         
+        # 保存crontab
+        save_crontab
+        
         # 显示当前cron任务
         echo "当前定时任务："
         crontab -l 2>/dev/null || echo "  无"
         echo ""
         echo "容器将保持运行，定时任务将按计划执行"
-        echo "使用 'docker exec -it <container_name> crontab -l' 查看定时任务"
-        echo "使用 'docker exec -it <container_name> crontab -e' 编辑定时任务"
+        echo "定时任务已保存到 $CRONTAB_FILE，容器重启后会自动恢复"
         echo ""
+        echo "使用以下命令管理容器："
+        echo "  查看定时任务: docker exec -it <container_name> crontab -l"
+        echo "  编辑定时任务: docker exec -it <container_name> crontab -e"
+        echo "  查看容器日志: docker logs <container_name>"
+        echo "  后台运行容器: docker run -d --name <container_name> ..."
+        echo ""
+        
+        # 设置定期保存crontab（每5分钟保存一次）
+        while true; do
+            sleep 300
+            save_crontab
+        done &
         
         # 保持容器运行
         tail -f /dev/null
