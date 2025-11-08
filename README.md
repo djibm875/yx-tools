@@ -1,13 +1,10 @@
 # Cloudflare SpeedTest 跨平台自动化工具
 
-[![Version](https://img.shields.io/badge/Version-2.2.3-blue.svg)](https://github.com/byJoey/yx-tools)
 [![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://python.org)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey.svg)](https://github.com)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 一个功能强大的跨平台Cloudflare测速工具，支持全球97个数据中心机场码映射，提供常规测速和优选反代功能。
-
-**当前版本：v2.2.3**
 
 ## 主要功能
 
@@ -15,42 +12,11 @@
 - **全球97个数据中心** - 支持完整的Cloudflare机场码映射
 - **智能测速** - 自动下载最新IP列表，支持自定义参数
 - **结果分析** - 生成详细的CSV格式测速报告
-- **IPv4/IPv6支持** - 支持IPv4和IPv6地址测速
-
-### 小白快速测试
-- **一键测速** - 简单输入3个参数即可开始测试
-- **全自动模式** - 无需选择地区，自动测试所有IP
-- **适合新手** - 专为新手设计，操作简单
 
 ### 优选反代
 - **CSV文件处理** - 从测速结果中提取最优IP
 - **反代列表生成** - 自动生成`ips_ports.txt`反代配置
 - **多格式支持** - 兼容各种CSV文件格式
-
-### 结果上报
-- **Cloudflare Workers API** - 支持上报到Cloudflare Workers API
-- **GitHub仓库上传** - 支持上传到GitHub公开仓库
-- **批量上传** - 支持批量上传优选IP结果
-- **自动格式化** - 自动格式化IP列表（包含注释）
-
-### 命令行支持
-- **命令行模式** - 支持命令行参数运行
-- **自动化脚本** - 适合集成到自动化流程
-- **参数配置** - 支持所有功能的命令行参数配置
-
-### 定时任务设置（Linux/OpenWrt）
-- **自动检测环境** - 自动检测Linux和OpenWrt系统
-- **Cron任务设置** - 支持设置Cron定时任务
-- **智能检测** - 自动检测是否已有类似任务
-- **灵活管理** - 支持清理现有任务或继续添加
-- **使用绝对路径** - 自动使用绝对路径，确保定时任务正确执行
-
-### Docker容器化支持
-- **Docker镜像** - 提供官方Docker镜像，开箱即用
-- **Docker Compose** - 支持Docker Compose一键部署
-- **数据持久化** - 支持挂载数据目录，保存测速结果
-- **多架构支持** - 支持amd64和arm64架构
-- **环境隔离** - 容器化运行，环境干净整洁
 
 ## 支持平台
 
@@ -65,115 +31,35 @@
 
 ## 快速开始
 
-### 方法一：交互式模式（推荐新手）
+### 方法一：直接运行（推荐）
 
 ```bash
 # 克隆项目
-git clone https://github.com/byJoey/yx-tools.git
-cd yx-tools
+git clone https://github.com/your-username/cloudflare-speedtest.git
+cd cloudflare-speedtest
 
 # 安装依赖
 pip install -r requirements.txt
 
-# 运行程序（交互式模式）
+# 运行程序
 python3 cloudflare_speedtest.py
 ```
 
-### 方法二：命令行模式（推荐自动化）
+### 方法二：使用预编译版本
 
-```bash
-# 克隆项目
-git clone https://github.com/byJoey/yx-tools.git
-cd yx-tools
-
-# 安装依赖
-pip install -r requirements.txt
-
-# 运行程序（命令行模式）
-python3 cloudflare_speedtest.py --mode beginner --count 10 --speed 1 --delay 1000
-
-# 查看帮助
-python3 cloudflare_speedtest.py --help
-```
-
-### 方法三：使用预编译版本
-
-从 [Releases](https://github.com/byJoey/yx-tools/releases) 页面下载对应平台的可执行文件：
+从 [Releases](https://github.com/your-username/cloudflare-speedtest/releases) 页面下载对应平台的可执行文件：
 
 - `CloudflareSpeedTest-windows-amd64.exe` - Windows x64
+- `CloudflareSpeedTest-windows-arm64.exe` - Windows ARM64
 - `CloudflareSpeedTest-macos-amd64` - macOS Intel
 - `CloudflareSpeedTest-macos-arm64` - macOS Apple Silicon
 - `CloudflareSpeedTest-linux-amd64` - Linux x64
 - `CloudflareSpeedTest-linux-arm64` - Linux ARM64
 
-### 方法四：使用Docker（推荐容器化部署）
-
-#### 使用Docker Compose（推荐）
-
-```bash
-# 克隆项目
-git clone https://github.com/byJoey/yx-tools.git
-cd yx-tools
-
-# 创建数据目录
-mkdir -p data config
-
-# 使用Docker Compose运行（交互模式）
-docker-compose run --rm cloudflare-speedtest
-
-# 使用Docker Compose运行（命令行模式）
-docker-compose run --rm cloudflare-speedtest --mode beginner --count 10 --speed 1 --delay 1000
-```
-
-#### 使用Docker命令
-
-```bash
-# 构建镜像
-docker build -t cloudflare-speedtest:latest .
-
-# 运行容器（交互模式）
-docker run -it --rm \
-  -v $(pwd)/data:/app/data \
-  -v $(pwd)/config:/app/config \
-  cloudflare-speedtest:latest
-
-# 运行容器（命令行模式）
-docker run -it --rm \
-  -v $(pwd)/data:/app/data \
-  -v $(pwd)/config:/app/config \
-  cloudflare-speedtest:latest \
-  --mode beginner --count 10 --speed 1 --delay 1000
-
-# 后台运行并设置定时任务
-docker run -d --name cloudflare-speedtest \
-  -v $(pwd)/data:/app/data \
-  -v $(pwd)/config:/app/config \
-  --restart unless-stopped \
-  cloudflare-speedtest:latest \
-  --mode beginner --count 10 --speed 1 --delay 1000
-```
-
-#### Docker使用说明
-
-- **数据持久化**：结果文件会保存在 `./data` 目录中
-- **配置文件**：配置文件会保存在 `./config` 目录中
-- **网络访问**：容器需要网络访问来下载IP列表和上传结果
-- **时区设置**：默认使用 `Asia/Shanghai` 时区
-- **架构支持**：镜像包含 amd64 和 arm64 版本的 CloudflareST 可执行文件
-
 ## 使用指南
 
-### 方法一：交互式模式（推荐新手）
+### 1. 常规测速
 
-#### macOS/Linux 权限设置
-```bash
-chmod 755 可执行文件拽到终端回车
-可执行文件拽到终端回车
-如果还是不行 请执行sudo spctl --master-disable
-依然不行 xattr -d com.apple.quarantine 可执行文件拽到终端回车
-```
-
-#### 运行程序
 ```bash
 python3 cloudflare_speedtest.py
 ```
@@ -181,324 +67,42 @@ python3 cloudflare_speedtest.py
 选择功能：
 ```
 功能选择:
-  1. 小白快速测试 - 简单输入，适合新手
-  2. 常规测速 - 测试指定机场码的IP速度
-  3. 优选反代 - 从CSV文件生成反代IP列表
+  1. 常规测速 - 测试指定机场码的IP速度
+  2. 优选反代 - 从CSV文件生成反代IP列表
 
 请选择功能 [默认: 1]: 1
 ```
 
-### 方法二：命令行模式（推荐自动化）
-
-命令行模式适合自动化脚本、定时任务、CI/CD等场景，支持所有功能通过参数配置。
-
-#### 基本用法
-
-**小白快速测试模式**
-```bash
-# 使用默认参数（10个IP，速度1MB/s，延迟1000ms）
-python3 cloudflare_speedtest.py --mode beginner
-
-# 指定测试参数
-python3 cloudflare_speedtest.py --mode beginner --count 20 --speed 2 --delay 500
-
-# 使用IPv6测试
-python3 cloudflare_speedtest.py --mode beginner --ipv6
-
-# 高质量测试（50个IP，速度5MB/s，延迟200ms）
-python3 cloudflare_speedtest.py --mode beginner --count 50 --speed 5 --delay 200
-
-# 快速测试（5个IP，速度0.5MB/s，延迟2000ms）
-python3 cloudflare_speedtest.py --mode beginner --count 5 --speed 0.5 --delay 2000
-```
-
-**常规测速模式**
-```bash
-# 测试指定地区（香港）
-python3 cloudflare_speedtest.py --mode normal --region HKG --count 10
-
-# 测试指定地区（新加坡），指定速度和延迟
-python3 cloudflare_speedtest.py --mode normal --region SIN --count 20 --speed 5 --delay 300
-
-# 测试指定地区（东京），使用IPv6
-python3 cloudflare_speedtest.py --mode normal --region NRT --count 15 --ipv6
-
-# 测试指定地区（洛杉矶），高质量测试
-python3 cloudflare_speedtest.py --mode normal --region LAX --count 50 --speed 10 --delay 200
-```
-
-**优选反代模式**
-```bash
-# 从默认CSV文件生成反代列表
-python3 cloudflare_speedtest.py --mode proxy
-
-# 从指定CSV文件生成反代列表
-python3 cloudflare_speedtest.py --mode proxy --csv result.csv
-
-# 从自定义路径的CSV文件生成反代列表
-python3 cloudflare_speedtest.py --mode proxy --csv /path/to/result.csv
-```
-
-#### 完整参数说明
-
-| 参数 | 说明 | 默认值 | 必需 | 示例 |
-|------|------|--------|------|------|
-| `--mode` | 运行模式 | - | ✅ | `beginner`/`normal`/`proxy` |
-| `--ipv6` | 使用IPv6（默认IPv4） | IPv4 | ❌ | `--ipv6` |
-| `--count` | 测试IP数量 | 10 | ❌ | `--count 20` |
-| `--speed` | 下载速度下限 (MB/s) | 1.0 | ❌ | `--speed 2` |
-| `--delay` | 延迟上限 (ms) | 1000 | ❌ | `--delay 500` |
-| `--region` | 地区码（常规测速模式需要） | - | ⚠️ | `--region HKG` |
-| `--csv` | CSV文件路径（优选反代模式） | result.csv | ❌ | `--csv result.csv` |
-| `--upload` | 上传方式 | none | ❌ | `api`/`github`/`none` |
-| `--worker-domain` | Worker域名（API上传需要） | - | ⚠️ | `--worker-domain example.com` |
-| `--uuid` | UUID或路径（API上传需要） | - | ⚠️ | `--uuid abc123` |
-| `--repo` | GitHub仓库路径（GitHub上传需要） | - | ⚠️ | `--repo owner/repo` |
-| `--token` | GitHub Token（GitHub上传需要） | - | ⚠️ | `--token ghp_xxx` |
-| `--file-path` | GitHub文件路径 | cloudflare_ips.txt | ❌ | `--file-path ips.txt` |
-| `--upload-count` | 上传IP数量 | 10 | ❌ | `--upload-count 20` |
-
-**说明：**
-- ✅ 必需参数：必须提供
-- ⚠️ 条件必需：在特定模式下需要
-- ❌ 可选参数：可以不提供，使用默认值
-
-#### 使用场景示例
-
-**场景1：定时自动测速并上报到API**
-```bash
-# 每天凌晨2点自动测速并上报
-python3 cloudflare_speedtest.py --mode beginner \
-  --count 20 --speed 2 --delay 500 \
-  --upload api \
-  --worker-domain example.com --uuid abc123 \
-  --upload-count 20
-```
-
-**场景2：测试多个地区并上传到GitHub**
-```bash
-# 测试香港地区
-python3 cloudflare_speedtest.py --mode normal \
-  --region HKG --count 20 --speed 5 --delay 300 \
-  --upload github \
-  --repo username/cloudflare-ips --token ghp_xxx \
-  --file-path hkg_ips.txt
-
-# 测试新加坡地区
-python3 cloudflare_speedtest.py --mode normal \
-  --region SIN --count 20 --speed 5 --delay 300 \
-  --upload github \
-  --repo username/cloudflare-ips --token ghp_xxx \
-  --file-path sin_ips.txt
-```
-
-**场景3：快速测试IPv6**
-```bash
-# 快速测试IPv6地址
-python3 cloudflare_speedtest.py --mode beginner \
-  --ipv6 --count 10 --speed 1 --delay 1000
-```
-
-**场景4：高质量测试（适合对速度要求高的场景）**
-```bash
-# 测试50个IP，速度要求5MB/s以上，延迟200ms以内
-python3 cloudflare_speedtest.py --mode beginner \
-  --count 50 --speed 5 --delay 200
-```
-
-**场景5：批量生成反代列表**
-```bash
-# 从多个CSV文件生成反代列表
-python3 cloudflare_speedtest.py --mode proxy --csv result1.csv
-python3 cloudflare_speedtest.py --mode proxy --csv result2.csv
-python3 cloudflare_speedtest.py --mode proxy --csv result3.csv
-```
-
-#### 结果上报详细说明
-
-**上报到 Cloudflare Workers API**
-
-完整示例：
-```bash
-python3 cloudflare_speedtest.py --mode beginner \
-  --count 20 --speed 2 --delay 500 \
-  --upload api \
-  --worker-domain example.com \
-  --uuid abc123 \
-  --upload-count 20
-```
-
-参数说明：
-- `--upload api`：指定上传方式为API
-- `--worker-domain`：您的Worker域名（例如：example.com）
-- `--uuid`：UUID或路径（例如：abc123 或 351c9981-04b6-4103-aa4b-864aa9c91469）
-- `--upload-count`：要上传的IP数量（默认10个）
-
-**上报到 GitHub 仓库**
-
-完整示例：
-```bash
-python3 cloudflare_speedtest.py --mode beginner \
-  --count 20 --speed 2 --delay 500 \
-  --upload github \
-  --repo username/repo-name \
-  --token ghp_xxxxxxxxxxxxxxxxxxxx \
-  --file-path cloudflare_ips.txt \
-  --upload-count 20
-```
-
-参数说明：
-- `--upload github`：指定上传方式为GitHub
-- `--repo`：GitHub仓库路径，格式：`owner/repo`（例如：`username/repo-name`）
-- `--token`：GitHub Personal Access Token（需要 `repo` 权限）
-- `--file-path`：上传的文件路径（默认：`cloudflare_ips.txt`）
-- `--upload-count`：要上传的IP数量（默认10个）
-
-**获取GitHub Token：**
-1. 访问 https://github.com/settings/tokens
-2. 点击 "Generate new token (classic)"
-3. 勾选 `repo` 权限
-4. 生成并复制Token
-
-#### 常用参数组合
-
-**快速测试组合**
-```bash
-python3 cloudflare_speedtest.py --mode beginner --count 5 --speed 0.5 --delay 2000
-```
-
-**标准测试组合**
-```bash
-python3 cloudflare_speedtest.py --mode beginner --count 20 --speed 2 --delay 500
-```
-
-**高质量测试组合**
-```bash
-python3 cloudflare_speedtest.py --mode beginner --count 50 --speed 5 --delay 200
-```
-
-**地区测试组合**
-```bash
-# 香港
-python3 cloudflare_speedtest.py --mode normal --region HKG --count 20 --speed 5 --delay 300
-
-# 新加坡
-python3 cloudflare_speedtest.py --mode normal --region SIN --count 20 --speed 5 --delay 300
-
-# 东京
-python3 cloudflare_speedtest.py --mode normal --region NRT --count 20 --speed 5 --delay 300
-```
-
-#### 查看帮助信息
-
-```bash
-# 查看完整帮助信息
-python3 cloudflare_speedtest.py --help
-
-# 查看帮助信息（包含使用示例）
-python3 cloudflare_speedtest.py -h
-```
-
-#### 错误处理
-
-**常见错误及解决方法：**
-
-1. **缺少必需参数**
-```bash
-# 错误：缺少 --mode 参数
-python3 cloudflare_speedtest.py --count 20
-# 解决：添加 --mode 参数
-python3 cloudflare_speedtest.py --mode beginner --count 20
-```
-
-2. **常规测速模式缺少地区码**
-```bash
-# 错误：常规测速模式需要 --region 参数
-python3 cloudflare_speedtest.py --mode normal --count 20
-# 解决：添加 --region 参数
-python3 cloudflare_speedtest.py --mode normal --region HKG --count 20
-```
-
-3. **上传模式缺少必需参数**
-```bash
-# 错误：API上传缺少 --worker-domain 或 --uuid
-python3 cloudflare_speedtest.py --mode beginner --upload api
-# 解决：添加必需参数
-python3 cloudflare_speedtest.py --mode beginner --upload api \
-  --worker-domain example.com --uuid abc123
-```
-
-#### 自动化脚本示例
-
-**Linux/Mac 定时任务（crontab）**
-```bash
-# 编辑crontab
-crontab -e
-
-# 每天凌晨2点自动测速并上报到API
-0 2 * * * cd /path/to/project && python3 cloudflare_speedtest.py --mode beginner --count 20 --speed 2 --delay 500 --upload api --worker-domain example.com --uuid abc123 >> /var/log/cloudflare_speedtest.log 2>&1
-```
-
-**Windows 计划任务**
-```batch
-@echo off
-cd /d C:\path\to\project
-python cloudflare_speedtest.py --mode beginner --count 20 --speed 2 --delay 500 --upload api --worker-domain example.com --uuid abc123
-```
-
-**Shell脚本示例**
-```bash
-#!/bin/bash
-# 自动测速脚本
-
-# 测试香港地区
-python3 cloudflare_speedtest.py --mode normal \
-  --region HKG --count 20 --speed 5 --delay 300 \
-  --upload github \
-  --repo username/cloudflare-ips --token ghp_xxx \
-  --file-path hkg_ips.txt
-
-# 测试新加坡地区
-python3 cloudflare_speedtest.py --mode normal \
-  --region SIN --count 20 --speed 5 --delay 300 \
-  --upload github \
-  --repo username/cloudflare-ips --token ghp_xxx \
-  --file-path sin_ips.txt
-```
-
-### 交互式模式详细说明
-
-#### 1. 小白快速测试模式
-
-专为新手设计，只需要输入3个简单的数字：
-```
-📊 第一步：设置测试IP数量
-请输入要测试的IP数量 [默认: 10]: 20
-
-⏱️  第二步：设置延迟上限
-请输入延迟上限(ms) [默认: 1000]: 500
-
-🚀 第三步：设置下载速度下限
-请输入下载速度下限(MB/s) [默认: 1]: 2
-```
-
-#### 2. 常规测速模式
-
-**机场码选择**
+#### 机场码选择
 - 输入机场码：`HKG` (香港)
 - 输入城市名：`香港` 或 `Hong Kong`
 - 查看完整列表：输入 `LIST`
 
-**自定义参数**
+#### 自定义参数
 ```
 自定义配置:
 请输入要测试的IP数量 [默认: 10]: 20
-请输入下载速度下限 (MB/s) [默认: 1]: 5
-请输入延迟上限 (ms) [默认: 1000]: 500
+请输入下载速度下限 (MB/s) [默认: 10]: 50
+请输入延迟上限 (ms) [默认: 200]: 100
+请输入测速时间限制 (秒) [默认: 10]: 15
 ```
 
-#### 3. 优选反代模式
+### 2. 优选反代
 
+```bash
+python3 cloudflare_speedtest.py
+```
+
+选择功能：
+```
+功能选择:
+  1. 常规测速 - 测试指定机场码的IP速度
+  2. 优选反代 - 从CSV文件生成反代IP列表
+
+请选择功能 [默认: 1]: 2
+```
+
+#### CSV文件处理
 ```
 优选反代模式
 ==================================================
@@ -511,19 +115,6 @@ CSV文件格式要求：
 
 请输入CSV文件路径 [默认: result.csv]: 
 ```
-
-#### 4. 结果上报功能
-
-**Cloudflare Workers API 上报**
-- 需要提供 Worker 域名和 UUID或者路径
-- 支持批量上传
-- 自动格式化IP列表（包含注释）
-
-**GitHub 仓库上传**
-- 需要提供 GitHub Personal Access Token
-- 支持上传到公开仓库
-- 文件格式：`IP:端口#地区名-速度MB/s`
-- 使用换行符分隔，不使用逗号
 
 ## 输出文件
 
@@ -540,16 +131,6 @@ IP 地址,端口,延迟,下载速度 (MB/s),上传速度 (MB/s)
 5.6.7.8:80
 9.10.11.12:8080
 ```
-
-### GitHub上传格式 (cloudflare_ips.txt)
-```
-1.2.3.4:443#香港-5.23MB/s
-5.6.7.8:443#新加坡-8.45MB/s
-9.10.11.12:443#东京-6.78MB/s
-```
-- 使用换行符分隔，每行一个IP
-- 包含注释信息（#后面的内容）
-- 格式：`IP:端口#地区名-速度MB/s`（井号前后无空格）
 
 ## 支持的机场码
 
@@ -619,7 +200,33 @@ cloudflare-speedtest/
 └── LICENSE                     # 许可证
 ```
 
+### 本地开发
+```bash
+# 克隆项目
+git clone https://github.com/your-username/cloudflare-speedtest.git
+cd cloudflare-speedtest
 
+# 创建虚拟环境
+python3 -m venv venv
+source venv/bin/activate  # Linux/macOS
+# 或
+venv\Scripts\activate  # Windows
+
+# 安装依赖
+pip install -r requirements.txt
+
+# 运行测试
+python3 cloudflare_speedtest.py
+```
+
+### 构建可执行文件
+```bash
+# 安装 PyInstaller
+pip install pyinstaller
+
+# 构建单文件可执行程序
+pyinstaller --onefile --name CloudflareSpeedTest cloudflare_speedtest.py
+```
 
 ## 贡献指南
 
@@ -640,46 +247,7 @@ cloudflare-speedtest/
 
 ## 更新日志
 
-### v2.2.3 (最新)
-- ✨ 新增Docker支持
-  - 提供官方Docker镜像，开箱即用
-  - 支持Docker Compose一键部署
-  - 支持多架构（amd64/arm64）
-  - 数据持久化支持
-  - 环境隔离，运行更稳定
-- ✨ 新增定时任务设置功能（Linux/OpenWrt）
-  - 自动检测Linux和OpenWrt环境
-  - 支持设置Cron定时任务
-  - 智能检测现有任务，支持清理或继续添加
-  - 自动使用绝对路径，确保定时任务正确执行
-  - 支持交互模式和命令行模式
-- 🔧 改进命令生成功能
-  - 自动使用实际应用名（支持改名的.py文件和封装后的可执行文件）
-  - 使用绝对路径生成命令，确保定时任务正确执行
-- 🔧 改进GitHub上传功能
-  - 添加配置保存功能，避免每次都要输入Token和仓库信息
-  - 改进网络错误处理，自动使用curl备用方案
-- 🐛 修复命令行模式下GitHub上传的网络错误问题
-
-### v2.2.2
-- ✨ 新增命令行参数支持
-- ✨ 新增小白快速测试模式
-- ✨ 新增结果上报功能（Cloudflare Workers API 和 GitHub）
-- ✨ 新增IPv6支持
-- ✨ 新增GitHub仓库上传功能
-- 🐛 修复编码问题（GBK解码错误）
-- 🐛 修复NoneType strip错误
-- 🔧 改进错误处理和用户提示
-- 📝 更新文档说明
-- 🔧 优化UUID格式验证（支持任意格式）
-- 🔧 改进GitHub上传功能（支持公开仓库，包含注释）
-
-### v2.0.0
-- 重构代码结构
-- 优化用户体验
-- 改进错误处理机制
-
-### v1.0.0 
+### v1.0.0 (2024-01-XX)
 - 初始版本发布
 - 支持97个全球数据中心
 - 常规测速功能
@@ -697,6 +265,13 @@ cloudflare-speedtest/
 - [CloudflareSpeedTest](https://github.com/XIU2/CloudflareSpeedTest) - 原始测速工具
 - 所有贡献者和用户的支持
 
+## 支持
+
+如果您需要帮助或有任何问题：
+
+- 邮箱：your-email@example.com
+- 讨论：[GitHub Discussions](https://github.com/your-username/cloudflare-speedtest/discussions)
+- 问题：[GitHub Issues](https://github.com/your-username/cloudflare-speedtest/issues)
 
 ---
 
