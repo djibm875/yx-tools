@@ -114,11 +114,24 @@ python3 cloudflare_speedtest.py --help
 # 拉取最新镜像
 docker pull ghcr.io/byjoey/yx-tools:latest
 
-# 运行容器（交互模式）
-docker run -it --rm \
+# 运行容器（交互模式 - 前台运行）
+# 如果设置了定时任务，容器会自动保持运行
+docker run -it --name cloudflare-speedtest \
   -v $(pwd)/data:/app/data \
   -v $(pwd)/config:/app/config \
+  --restart unless-stopped \
   ghcr.io/byjoey/yx-tools:latest
+
+# 运行容器（交互模式 - 后台运行，退出终端不中断）
+# 推荐方式：先后台运行，再进入容器设置
+docker run -d --name cloudflare-speedtest \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config \
+  --restart unless-stopped \
+  ghcr.io/byjoey/yx-tools:latest
+
+# 然后进入容器设置定时任务
+docker exec -it cloudflare-speedtest python3 /app/cloudflare_speedtest.py
 
 # 运行容器（命令行模式）
 docker run -it --rm \
@@ -185,9 +198,49 @@ docker run -d --name cloudflare-speedtest \
 
 #### Docker内定时任务设置
 
-容器内已集成cron服务，支持在容器内设置定时任务：
+容器内已集成cron服务，支持在容器内设置定时任务，**定时任务会自动持久化到 `/app/config/crontab` 文件，容器重启后会自动恢复**。
 
-**方法一：使用环境变量自动设置（推荐）**
+**方法一：交互模式设置（推荐）**
+
+**方式A：前台运行（使用 -it）**
+
+```bash
+# 1. 前台运行容器（交互模式）
+docker run -it --name cloudflare-speedtest \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config \
+  --restart unless-stopped \
+  ghcr.io/byjoey/yx-tools:latest
+
+# 2. 在交互模式中选择设置定时任务
+# 3. 设置完成后，定时任务会自动保存到 ./config/crontab
+# 4. 容器会保持运行，定时任务会按计划执行
+# 5. 使用 Ctrl+P, Ctrl+Q 分离容器（不停止容器）
+# 6. 或者直接关闭终端，容器会继续运行（因为设置了 --restart unless-stopped）
+# 7. 即使容器重启，定时任务也会自动恢复
+```
+
+**方式B：后台运行（使用 -d，推荐）**
+
+```bash
+# 1. 后台运行容器
+docker run -d --name cloudflare-speedtest \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config \
+  --restart unless-stopped \
+  ghcr.io/byjoey/yx-tools:latest
+
+# 2. 进入容器设置定时任务（交互模式）
+docker exec -it cloudflare-speedtest python3 /app/cloudflare_speedtest.py
+
+# 3. 在交互模式中选择设置定时任务
+# 4. 设置完成后，定时任务会自动保存到 ./config/crontab
+# 5. 容器会保持运行，定时任务会按计划执行
+# 6. 退出终端不影响容器运行
+# 7. 即使容器重启，定时任务也会自动恢复
+```
+
+**方法二：使用环境变量自动设置**
 
 在 `docker-compose.yml` 中配置：
 
@@ -209,20 +262,19 @@ docker run -d --name cloudflare-speedtest \
   ghcr.io/byjoey/yx-tools:latest
 ```
 
-**方法二：手动设置定时任务**
+**方法三：手动编辑crontab**
 
 ```bash
 # 进入容器
 docker exec -it cloudflare-speedtest bash
 
-# 在容器内运行脚本，使用交互模式设置定时任务
-python3 /app/cloudflare_speedtest.py
-
-# 或直接编辑crontab
-docker exec -it cloudflare-speedtest crontab -e
+# 编辑crontab
+crontab -e
 
 # 查看定时任务
-docker exec -it cloudflare-speedtest crontab -l
+crontab -l
+
+# 退出容器后，定时任务会自动保存
 ```
 
 **Cron时间格式示例：**
@@ -231,16 +283,52 @@ docker exec -it cloudflare-speedtest crontab -l
 - `*/30 * * * *` - 每30分钟
 - `0 3 * * 1` - 每周一凌晨3点
 
+**定时任务持久化说明：**
+- ✅ 定时任务自动保存到 `./config/crontab` 文件
+- ✅ 容器重启后自动恢复定时任务
+- ✅ 每5分钟自动保存一次，确保不丢失
+- ✅ 退出终端不影响容器运行（使用 `-d` 后台运行）
+
 #### Docker使用说明
 
 - **预构建镜像**：可直接从 [GitHub Container Registry](https://github.com/byJoey/yx-tools/pkgs/container/yx-tools) 拉取，无需本地构建
 - **镜像地址**：`ghcr.io/byjoey/yx-tools:latest`
 - **定时任务**：容器内已集成cron服务，支持在容器内设置定时任务（容器需24小时运行）
+- **定时任务持久化**：定时任务自动保存到 `./config/crontab`，容器重启后自动恢复
+- **后台运行**：使用 `-d` 参数后台运行，退出终端不影响容器运行
 - **数据持久化**：结果文件会保存在 `./data` 目录中
-- **配置文件**：配置文件会保存在 `./config` 目录中
+- **配置文件**：配置文件会保存在 `./config` 目录中（包括crontab）
 - **网络访问**：容器需要网络访问来下载IP列表和上传结果
 - **时区设置**：默认使用 `Asia/Shanghai` 时区
 - **架构支持**：镜像包含 amd64 和 arm64 版本的 CloudflareST 可执行文件，支持多架构自动选择
+
+#### 容器管理命令
+
+```bash
+# 查看容器状态
+docker ps -a | grep cloudflare-speedtest
+
+# 查看容器日志
+docker logs cloudflare-speedtest
+
+# 查看定时任务
+docker exec -it cloudflare-speedtest crontab -l
+
+# 编辑定时任务
+docker exec -it cloudflare-speedtest crontab -e
+
+# 停止容器
+docker stop cloudflare-speedtest
+
+# 启动容器（定时任务会自动恢复）
+docker start cloudflare-speedtest
+
+# 重启容器（定时任务会自动恢复）
+docker restart cloudflare-speedtest
+
+# 删除容器（不会删除数据，数据在挂载的目录中）
+docker rm cloudflare-speedtest
+```
 
 ## 使用指南
 
