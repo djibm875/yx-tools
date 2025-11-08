@@ -45,6 +45,13 @@
 - **灵活管理** - 支持清理现有任务或继续添加
 - **使用绝对路径** - 自动使用绝对路径，确保定时任务正确执行
 
+### Docker容器化支持
+- **Docker镜像** - 提供官方Docker镜像，开箱即用
+- **Docker Compose** - 支持Docker Compose一键部署
+- **数据持久化** - 支持挂载数据目录，保存测速结果
+- **多架构支持** - 支持amd64和arm64架构
+- **环境隔离** - 容器化运行，环境干净整洁
+
 ## 支持平台
 
 | 平台 | 架构 | 状态 |
@@ -98,6 +105,61 @@ python3 cloudflare_speedtest.py --help
 - `CloudflareSpeedTest-macos-arm64` - macOS Apple Silicon
 - `CloudflareSpeedTest-linux-amd64` - Linux x64
 - `CloudflareSpeedTest-linux-arm64` - Linux ARM64
+
+### 方法四：使用Docker（推荐容器化部署）
+
+#### 使用Docker Compose（推荐）
+
+```bash
+# 克隆项目
+git clone https://github.com/byJoey/yx-tools.git
+cd yx-tools
+
+# 创建数据目录
+mkdir -p data config
+
+# 使用Docker Compose运行（交互模式）
+docker-compose run --rm cloudflare-speedtest
+
+# 使用Docker Compose运行（命令行模式）
+docker-compose run --rm cloudflare-speedtest --mode beginner --count 10 --speed 1 --delay 1000
+```
+
+#### 使用Docker命令
+
+```bash
+# 构建镜像
+docker build -t cloudflare-speedtest:latest .
+
+# 运行容器（交互模式）
+docker run -it --rm \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config \
+  cloudflare-speedtest:latest
+
+# 运行容器（命令行模式）
+docker run -it --rm \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config \
+  cloudflare-speedtest:latest \
+  --mode beginner --count 10 --speed 1 --delay 1000
+
+# 后台运行并设置定时任务
+docker run -d --name cloudflare-speedtest \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config \
+  --restart unless-stopped \
+  cloudflare-speedtest:latest \
+  --mode beginner --count 10 --speed 1 --delay 1000
+```
+
+#### Docker使用说明
+
+- **数据持久化**：结果文件会保存在 `./data` 目录中
+- **配置文件**：配置文件会保存在 `./config` 目录中
+- **网络访问**：容器需要网络访问来下载IP列表和上传结果
+- **时区设置**：默认使用 `Asia/Shanghai` 时区
+- **架构支持**：镜像包含 amd64 和 arm64 版本的 CloudflareST 可执行文件
 
 ## 使用指南
 
@@ -579,6 +641,12 @@ cloudflare-speedtest/
 ## 更新日志
 
 ### v2.2.3 (最新)
+- ✨ 新增Docker支持
+  - 提供官方Docker镜像，开箱即用
+  - 支持Docker Compose一键部署
+  - 支持多架构（amd64/arm64）
+  - 数据持久化支持
+  - 环境隔离，运行更稳定
 - ✨ 新增定时任务设置功能（Linux/OpenWrt）
   - 自动检测Linux和OpenWrt环境
   - 支持设置Cron定时任务
