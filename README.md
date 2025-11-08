@@ -183,10 +183,59 @@ docker run -d --name cloudflare-speedtest \
   --mode beginner --count 10 --speed 1 --delay 1000
 ```
 
+#### Docker内定时任务设置
+
+容器内已集成cron服务，支持在容器内设置定时任务：
+
+**方法一：使用环境变量自动设置（推荐）**
+
+在 `docker-compose.yml` 中配置：
+
+```yaml
+environment:
+  - CRON_SCHEDULE=0 2 * * *  # 每天凌晨2点
+  - CRON_COMMAND=python3 /app/cloudflare_speedtest.py --mode beginner --count 10 --speed 1 --delay 1000
+```
+
+或使用Docker命令：
+
+```bash
+docker run -d --name cloudflare-speedtest \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config \
+  -e CRON_SCHEDULE="0 2 * * *" \
+  -e CRON_COMMAND="python3 /app/cloudflare_speedtest.py --mode beginner --count 10 --speed 1 --delay 1000" \
+  --restart unless-stopped \
+  ghcr.io/byjoey/yx-tools:latest
+```
+
+**方法二：手动设置定时任务**
+
+```bash
+# 进入容器
+docker exec -it cloudflare-speedtest bash
+
+# 在容器内运行脚本，使用交互模式设置定时任务
+python3 /app/cloudflare_speedtest.py
+
+# 或直接编辑crontab
+docker exec -it cloudflare-speedtest crontab -e
+
+# 查看定时任务
+docker exec -it cloudflare-speedtest crontab -l
+```
+
+**Cron时间格式示例：**
+- `0 2 * * *` - 每天凌晨2点
+- `0 */6 * * *` - 每6小时
+- `*/30 * * * *` - 每30分钟
+- `0 3 * * 1` - 每周一凌晨3点
+
 #### Docker使用说明
 
 - **预构建镜像**：可直接从 [GitHub Container Registry](https://github.com/byJoey/yx-tools/pkgs/container/yx-tools) 拉取，无需本地构建
 - **镜像地址**：`ghcr.io/byjoey/yx-tools:latest`
+- **定时任务**：容器内已集成cron服务，支持在容器内设置定时任务（容器需24小时运行）
 - **数据持久化**：结果文件会保存在 `./data` 目录中
 - **配置文件**：配置文件会保存在 `./config` 目录中
 - **网络访问**：容器需要网络访问来下载IP列表和上传结果
