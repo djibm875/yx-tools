@@ -108,11 +108,11 @@ jobs:
           # 下载对应的 CloudflareST_proxy 可执行文件
           if ("${{ matrix.arch }}" -eq "amd64") {
             Invoke-WebRequest -Uri "https://github.com/byJoey/CloudflareSpeedTest/releases/download/v1.0/CloudflareST_proxy_windows_amd64.zip" -OutFile "CloudflareST_proxy_windows_amd64.zip"
-            Expand-Archive -Path "CloudflareST_proxy_windows_amd64.zip" -DestinationPath "temp"
+            Expand-Archive -Path "CloudflareST_proxy_windows_amd64.zip" -DestinationPath "temp" -Force
             Copy-Item "temp/CloudflareST_proxy_windows_amd64.exe" "$packageName/"
           } else {
             Invoke-WebRequest -Uri "https://github.com/byJoey/CloudflareSpeedTest/releases/download/v1.0/CloudflareST_proxy_windows_386.zip" -OutFile "CloudflareST_proxy_windows_386.zip"
-            Expand-Archive -Path "CloudflareST_proxy_windows_386.zip" -DestinationPath "temp"
+            Expand-Archive -Path "CloudflareST_proxy_windows_386.zip" -DestinationPath "temp" -Force
             Copy-Item "temp/CloudflareST_proxy_windows_386.exe" "$packageName/"
           }
           
@@ -197,12 +197,12 @@ jobs:
           elif [ "${{ matrix.platform }}" = "macos" ]; then
             if [ "${{ matrix.arch }}" = "amd64" ]; then
               curl -L -o CloudflareST_proxy_darwin_amd64.zip https://github.com/byJoey/CloudflareSpeedTest/releases/download/v1.0/CloudflareST_proxy_darwin_amd64.zip
-              unzip CloudflareST_proxy_darwin_amd64.zip
+              unzip -o CloudflareST_proxy_darwin_amd64.zip
               cp CloudflareST_proxy_darwin_amd64 $PACKAGE_NAME/
               chmod +x $PACKAGE_NAME/CloudflareST_proxy_darwin_amd64
             else
               curl -L -o CloudflareST_proxy_darwin_arm64.zip https://github.com/byJoey/CloudflareSpeedTest/releases/download/v1.0/CloudflareST_proxy_darwin_arm64.zip
-              unzip CloudflareST_proxy_darwin_arm64.zip
+              unzip -o CloudflareST_proxy_darwin_arm64.zip
               cp CloudflareST_proxy_darwin_arm64 $PACKAGE_NAME/
               chmod +x $PACKAGE_NAME/CloudflareST_proxy_darwin_arm64
             fi
