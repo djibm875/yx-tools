@@ -1647,7 +1647,10 @@ def parse_args():
   # 指定IP版本
   python cloudflare_speedtest.py --mode beginner --ipv6
   
-  # 上传结果到API
+  # 上传结果到API（清空现有IP）
+  python cloudflare_speedtest.py --mode beginner --upload api --worker-domain example.com --uuid abc123 --clear
+  
+  # 上传结果到API（不清空，IP会累积）
   python cloudflare_speedtest.py --mode beginner --upload api --worker-domain example.com --uuid abc123
   
   # 上传结果到GitHub
@@ -1700,6 +1703,8 @@ def parse_args():
     # 其他参数
     parser.add_argument('--upload-count', type=int, default=10,
                        help='上传IP数量（默认: 10）')
+    parser.add_argument('--clear', action='store_true',
+                       help='上传前清空现有IP（避免IP累积，推荐使用）')
     
     return parser.parse_args()
 
@@ -1783,7 +1788,7 @@ def run_with_args(args):
                     print("❌ API上传需要提供 --worker-domain 和 --uuid 参数")
                 else:
                     # 调用命令行模式的上传函数
-                    upload_to_cloudflare_api_cli("result.csv", args.worker_domain, args.uuid, args.upload_count)
+                    upload_to_cloudflare_api_cli("result.csv", args.worker_domain, args.uuid, args.upload_count, clear_existing=args.clear)
             elif args.upload == 'github':
                 if not args.repo or not args.token:
                     print("❌ GitHub上传需要提供 --repo 和 --token 参数")
@@ -1868,7 +1873,7 @@ def run_with_args(args):
                     print("❌ API上传需要提供 --worker-domain 和 --uuid 参数")
                 else:
                     # 调用命令行模式的上传函数
-                    upload_to_cloudflare_api_cli("result.csv", args.worker_domain, args.uuid, args.upload_count)
+                    upload_to_cloudflare_api_cli("result.csv", args.worker_domain, args.uuid, args.upload_count, clear_existing=args.clear)
             elif args.upload == 'github':
                 if not args.repo or not args.token:
                     print("❌ GitHub上传需要提供 --repo 和 --token 参数")
@@ -1912,6 +1917,7 @@ def generate_cli_command(mode, ip_version, cfcolo=None, dn_count=None, speed_lim
             - worker_domain: Cloudflare Workers 域名 (api方式)
             - uuid: UUID或路径 (api方式)
             - upload_count: 上传数量 (api方式)
+            - clear_existing: 是否清空现有IP (api方式，布尔值)
             - github_token: GitHub Token (github方式)
             - repo_info: 仓库信息 owner/repo (github方式)
             - file_path: 文件路径 (github方式)
@@ -1964,6 +1970,9 @@ def generate_cli_command(mode, ip_version, cfcolo=None, dn_count=None, speed_lim
                 cmd_parts.append(f"--uuid {upload_info['uuid']}")
             if upload_info.get("upload_count"):
                 cmd_parts.append(f"--upload-count {upload_info['upload_count']}")
+            # 如果选择了清空选项，添加 --clear 参数
+            if upload_info.get("clear_existing"):
+                cmd_parts.append("--clear")
         elif upload_info.get("upload_method") == "github":
             cmd_parts.append("--upload github")
             if upload_info.get("github_token"):
@@ -2836,7 +2845,8 @@ def upload_to_cloudflare_api(result_file="result.csv"):
             "upload_method": "api",
             "worker_domain": worker_domain,
             "uuid": uuid,
-            "upload_count": upload_count
+            "upload_count": upload_count,
+            "clear_existing": should_clear  # 保存清空选项
         }
         
     except Exception as e:
@@ -3258,8 +3268,16 @@ def upload_to_github(result_file="result.csv"):
         return None
 
 
-def upload_to_cloudflare_api_cli(result_file="result.csv", worker_domain=None, uuid=None, upload_count=10):
-    """命令行模式：上报优选结果到 Cloudflare Workers API"""
+def upload_to_cloudflare_api_cli(result_file="result.csv", worker_domain=None, uuid=None, upload_count=10, clear_existing=False):
+    """命令行模式：上报优选结果到 Cloudflare Workers API
+    
+    Args:
+        result_file: 测速结果文件路径
+        worker_domain: Worker域名
+        uuid: UUID或路径
+        upload_count: 上传IP数量
+        clear_existing: 是否清空现有IP（默认: False）
+    """
     print("\n" + "=" * 70)
     print(" 命令行模式：Cloudflare Workers API 上报")
     print("=" * 70)
@@ -3271,6 +3289,91 @@ def upload_to_cloudflare_api_cli(result_file="result.csv", worker_domain=None, u
     
     # 构建 API URL
     api_url = f"https://{worker_domain}/{uuid}/api/preferred-ips"
+    
+    # 检查是否已有数据并决定是否清空
+    should_clear = False
+    if clear_existing:
+        # 如果指定了清空选项，先检查现有数据
+        print("\n🔍 正在检查现有优选IP...")
+        try:
+            try:
+                response = requests.get(api_url, timeout=10)
+            except ImportError as e:
+                # SSL模块不可用，静默切换到curl
+                if "SSL module is not available" in str(e):
+                    response = curl_request(api_url, method='GET', timeout=10)
+                else:
+                    raise
+            
+            if response.status_code == 200:
+                result = response.json()
+                existing_count = result.get('count', 0)
+                if existing_count > 0:
+                    print(f"⚠️  发现已存在 {existing_count} 个优选IP")
+                    should_clear = True
+                else:
+                    print("✅ 当前无数据，将直接添加")
+            else:
+                print("⚠️  无法获取现有数据状态，将尝试清空后添加")
+                should_clear = True
+        except Exception as e:
+            print(f"⚠️  检查现有数据失败: {e}")
+            print("将继续尝试清空后添加...")
+            should_clear = True
+    else:
+        # 如果没有指定清空选项，检查现有数据但不清空
+        print("\n🔍 正在检查现有优选IP...")
+        try:
+            try:
+                response = requests.get(api_url, timeout=10)
+            except ImportError as e:
+                # SSL模块不可用，静默切换到curl
+                if "SSL module is not available" in str(e):
+                    response = curl_request(api_url, method='GET', timeout=10)
+                else:
+                    raise
+            
+            if response.status_code == 200:
+                result = response.json()
+                existing_count = result.get('count', 0)
+                if existing_count > 0:
+                    print(f"⚠️  发现已存在 {existing_count} 个优选IP")
+                    print("💡 提示: 使用 --clear 参数可以在上传前清空现有IP，避免IP累积")
+                else:
+                    print("✅ 当前无数据，将直接添加")
+        except Exception as e:
+            print(f"⚠️  检查现有数据失败: {e}")
+    
+    # 如果需要清空，先执行清空操作
+    if should_clear:
+        print("\n🗑️  正在清空现有数据...")
+        try:
+            try:
+                delete_response = requests.delete(
+                    api_url,
+                    json={"all": True},
+                    headers={"Content-Type": "application/json"},
+                    timeout=10
+                )
+            except ImportError as e:
+                # SSL模块不可用，静默切换到curl
+                if "SSL module is not available" in str(e):
+                    delete_response = curl_request(
+                        api_url,
+                        method='DELETE',
+                        data={"all": True},
+                        headers={"Content-Type": "application/json"},
+                        timeout=10
+                    )
+                else:
+                    raise
+            
+            if delete_response.status_code == 200:
+                print("✅ 现有数据已清空")
+            else:
+                print(f"⚠️  清空失败 (HTTP {delete_response.status_code})，继续尝试添加...")
+        except Exception as e:
+            print(f"⚠️  清空操作失败: {e}，继续尝试添加...")
     
     # 读取测速结果
     print("\n📊 正在读取测速结果...")
