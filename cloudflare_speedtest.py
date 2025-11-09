@@ -2311,11 +2311,19 @@ def setup_cron_job():
         # 构建带环境变量的cron命令
         # 设置PATH环境变量，确保能找到python3和其他命令
         if current_path:
-            # 如果Python目录不在PATH中，添加到PATH前面
-            if python_dir not in current_path:
-                env_path = f"{python_dir}:{current_path}"
-            else:
-                env_path = current_path
+            # 将PATH分割成列表，去除重复
+            path_list = current_path.split(':')
+            # 如果Python目录不在PATH中，添加到前面
+            if python_dir not in path_list:
+                path_list.insert(0, python_dir)
+            # 去除重复的路径
+            seen = set()
+            unique_paths = []
+            for path in path_list:
+                if path and path not in seen:
+                    seen.add(path)
+                    unique_paths.append(path)
+            env_path = ':'.join(unique_paths)
         else:
             env_path = python_dir
         
