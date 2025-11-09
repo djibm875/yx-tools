@@ -1996,6 +1996,30 @@ def main():
         args = parse_args()
         return run_with_args(args)
     
+    # 检查是否是交互式环境（非交互式环境如cron、Docker容器等）
+    try:
+        is_interactive = sys.stdin.isatty()
+    except:
+        # 如果无法检测，假设是交互式环境
+        is_interactive = True
+    
+    # 如果不是交互式环境，显示帮助信息并退出
+    if not is_interactive:
+        print("=" * 80)
+        print(" Cloudflare SpeedTest 跨平台自动化脚本")
+        print("=" * 80)
+        print("检测到非交互式环境，请使用命令行参数模式运行。")
+        print("")
+        print("示例命令：")
+        print("  python3 cloudflare_speedtest.py --mode beginner --count 10 --speed 1 --delay 1000")
+        print("  python3 cloudflare_speedtest.py --mode normal --region HKG --count 10")
+        print("  python3 cloudflare_speedtest.py --mode proxy --csv result.csv")
+        print("")
+        print("查看完整帮助：")
+        print("  python3 cloudflare_speedtest.py --help")
+        print("=" * 80)
+        return 1
+    
     # 交互式模式
     # 设置控制台编码（Windows 兼容）
     if sys.platform == "win32":
