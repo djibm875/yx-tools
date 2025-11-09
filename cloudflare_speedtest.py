@@ -1923,12 +1923,9 @@ def generate_cli_command(mode, ip_version, cfcolo=None, dn_count=None, speed_lim
     
     # 判断是否是Python脚本（.py文件）还是封装后的可执行文件
     if app_name.endswith('.py'):
-        # Python脚本，需要python/python3命令，使用绝对路径
-        if sys.platform == "win32":
-            python_cmd = "python"
-        else:
-            python_cmd = "python3"
-        cmd_parts = [python_cmd, script_path]
+        # Python脚本，使用完整路径的Python可执行文件（避免cron找不到python3）
+        python_exe = get_python_executable()
+        cmd_parts = [python_exe, script_path]
     else:
         # 封装后的可执行文件，使用绝对路径
         cmd_parts = [script_path]
@@ -2081,6 +2078,46 @@ def is_openwrt():
     return False
 
 
+def get_python_executable():
+    """获取Python可执行文件的完整路径（用于cron任务）"""
+    import shutil
+    
+    # 优先使用当前运行的Python解释器路径
+    python_exe = sys.executable
+    
+    # 如果是相对路径或不在PATH中，尝试查找完整路径
+    if not os.path.isabs(python_exe) or not os.path.exists(python_exe):
+        # 尝试使用which命令查找
+        try:
+            if sys.platform == "win32":
+                # Windows使用where命令
+                result = subprocess.run(['where', 'python'], capture_output=True, text=True, timeout=5)
+            else:
+                # Unix系统使用which命令
+                result = subprocess.run(['which', 'python3'], capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0:
+                found_path = result.stdout.strip().split('\n')[0]
+                if found_path and os.path.exists(found_path):
+                    python_exe = found_path
+        except:
+            pass
+    
+    # 如果还是找不到，尝试使用shutil.which
+    if not os.path.exists(python_exe):
+        try:
+            if sys.platform == "win32":
+                found_path = shutil.which('python')
+            else:
+                found_path = shutil.which('python3')
+            if found_path:
+                python_exe = found_path
+        except:
+            pass
+    
+    return python_exe
+
+
 def get_current_command():
     """获取本次运行的完整命令（用于定时任务，使用绝对路径）"""
     import os
@@ -2092,12 +2129,10 @@ def get_current_command():
     # 如果是命令行模式，从sys.argv重新构建命令
     if len(sys.argv) > 1:
         if app_name.endswith('.py'):
-            if sys.platform == "win32":
-                python_cmd = "python"
-            else:
-                python_cmd = "python3"
+            # 使用完整路径的Python可执行文件
+            python_exe = get_python_executable()
             # 使用绝对路径
-            cmd_parts = [python_cmd, script_path] + sys.argv[1:]
+            cmd_parts = [python_exe, script_path] + sys.argv[1:]
         else:
             # 使用绝对路径
             cmd_parts = [script_path] + sys.argv[1:]
@@ -2228,8 +2263,34 @@ def setup_cron_job():
         if confirm not in ['n', 'no']:
             break
     
-    # 构建cron任务
-    cron_line = f"{cron_time} {current_command}"
+    # 构建cron任务（如果是Python脚本，添加PATH环境变量）
+    script_path = os.path.abspath(sys.argv[0])
+    app_name = os.path.basename(script_path)
+    
+    # 检查是否是Python脚本
+    if app_name.endswith('.py'):
+        # 获取当前PATH环境变量
+        current_path = os.environ.get('PATH', '')
+        # 获取Python可执行文件的目录
+        python_exe = get_python_executable()
+        python_dir = os.path.dirname(python_exe)
+        
+        # 构建带环境变量的cron命令
+        # 设置PATH环境变量，确保能找到python3和其他命令
+        if current_path:
+            # 如果Python目录不在PATH中，添加到PATH前面
+            if python_dir not in current_path:
+                env_path = f"{python_dir}:{current_path}"
+            else:
+                env_path = current_path
+        else:
+            env_path = python_dir
+        
+        # 构建cron命令，包含PATH环境变量设置
+        cron_line = f"{cron_time} PATH={env_path} {current_command}"
+    else:
+        # 非Python脚本，直接使用命令
+        cron_line = f"{cron_time} {current_command}"
     
     try:
         # 读取现有crontab
