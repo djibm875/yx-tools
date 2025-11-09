@@ -53,9 +53,27 @@ if [ -n "$CRON_SCHEDULE" ] && [ -n "$CRON_COMMAND" ]; then
     # 保持容器运行
     tail -f /dev/null
 else
-    # 没有设置环境变量，运行交互模式
-    # 运行Python脚本（交互模式）
-    python3 /app/cloudflare_speedtest.py
+    # 没有设置环境变量，检查是否是交互式环境
+    if [ -t 0 ]; then
+        # 交互式环境（有终端），运行交互模式
+        python3 /app/cloudflare_speedtest.py
+    else
+        # 非交互式环境（无终端），显示帮助信息
+        echo "检测到非交互式环境，请使用以下方式运行："
+        echo ""
+        echo "1. 使用命令行参数模式："
+        echo "   docker exec -it <container_name> python3 /app/cloudflare_speedtest.py --mode beginner --count 10"
+        echo ""
+        echo "2. 进入容器后运行交互模式："
+        echo "   docker exec -it <container_name> bash"
+        echo "   python3 /app/cloudflare_speedtest.py"
+        echo ""
+        echo "3. 使用环境变量设置定时任务："
+        echo "   docker run -e CRON_SCHEDULE='0 2 * * *' -e CRON_COMMAND='python3 /app/cloudflare_speedtest.py --mode beginner' ..."
+        echo ""
+        echo "查看帮助信息："
+        python3 /app/cloudflare_speedtest.py --help || true
+    fi
     
     # 脚本运行完成后，检查是否设置了定时任务
     CRON_JOBS=$(crontab -l 2>/dev/null | grep -v '^#' | grep -v '^$' || true)
@@ -101,37 +119,5 @@ else
     
     # 保持容器运行
     tail -f /dev/null
-fi
-
-        # 保存crontab
-        save_crontab
-        
-        # 显示当前cron任务
-        echo "当前定时任务："
-        crontab -l 2>/dev/null || echo "  无"
-        echo ""
-        echo "容器将保持运行，定时任务将按计划执行"
-        echo "定时任务已保存到 $CRONTAB_FILE，容器重启后会自动恢复"
-        echo ""
-        echo "使用以下命令管理容器："
-        echo "  查看定时任务: docker exec -it <container_name> crontab -l"
-        echo "  编辑定时任务: docker exec -it <container_name> crontab -e"
-        echo "  查看容器日志: docker logs <container_name>"
-        echo "  后台运行容器: docker run -d --name <container_name> ..."
-        echo ""
-        
-        # 设置定期保存crontab（每5分钟保存一次）
-        while true; do
-            sleep 300
-            save_crontab
-        done &
-        
-        # 保持容器运行
-        tail -f /dev/null
-    else
-        # 没有设置定时任务，直接退出
-        echo "未设置定时任务，容器将退出"
-        exit 0
-    fi
 fi
 
