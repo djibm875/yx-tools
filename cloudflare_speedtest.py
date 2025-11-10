@@ -3376,38 +3376,7 @@ def upload_to_cloudflare_api_cli(result_file="result.csv", worker_domain=None, u
         except Exception as e:
             print(f"⚠️  检查现有数据失败: {e}")
     
-    # 如果需要清空，先执行清空操作
-    if should_clear:
-        print("\n🗑️  正在清空现有数据...")
-        try:
-            try:
-                delete_response = requests.delete(
-                    api_url,
-                    json={"all": True},
-                    headers={"Content-Type": "application/json"},
-                    timeout=10
-                )
-            except ImportError as e:
-                # SSL模块不可用，静默切换到curl
-                if "SSL module is not available" in str(e):
-                    delete_response = curl_request(
-                        api_url,
-                        method='DELETE',
-                        data={"all": True},
-                        headers={"Content-Type": "application/json"},
-                        timeout=10
-                    )
-                else:
-                    raise
-            
-            if delete_response.status_code == 200:
-                print("✅ 现有数据已清空")
-            else:
-                print(f"⚠️  清空失败 (HTTP {delete_response.status_code})，继续尝试添加...")
-        except Exception as e:
-            print(f"⚠️  清空操作失败: {e}，继续尝试添加...")
-    
-    # 读取测速结果
+    # 读取测速结果（先读取，确认有数据后再清空）
     print("\n📊 正在读取测速结果...")
     try:
         best_ips = []
@@ -3477,6 +3446,37 @@ def upload_to_cloudflare_api_cli(result_file="result.csv", worker_domain=None, u
         # 限制上传数量
         upload_count = min(upload_count, len(best_ips))
         print(f"✅ 找到 {len(best_ips)} 个测速结果，将上传前 {upload_count} 个")
+        
+        # 如果需要清空，先执行清空操作（在确认有数据可以上报之后）
+        if should_clear:
+            print("\n🗑️  正在清空现有数据...")
+            try:
+                try:
+                    delete_response = requests.delete(
+                        api_url,
+                        json={"all": True},
+                        headers={"Content-Type": "application/json"},
+                        timeout=10
+                    )
+                except ImportError as e:
+                    # SSL模块不可用，静默切换到curl
+                    if "SSL module is not available" in str(e):
+                        delete_response = curl_request(
+                            api_url,
+                            method='DELETE',
+                            data={"all": True},
+                            headers={"Content-Type": "application/json"},
+                            timeout=10
+                        )
+                    else:
+                        raise
+                
+                if delete_response.status_code == 200:
+                    print("✅ 现有数据已清空")
+                else:
+                    print(f"⚠️  清空失败 (HTTP {delete_response.status_code})，继续尝试添加...")
+            except Exception as e:
+                print(f"⚠️  清空操作失败: {e}，继续尝试添加...")
         
         # 构建批量上报数据
         print("\n🚀 开始批量上报优选IP...")
