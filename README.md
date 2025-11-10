@@ -330,6 +330,113 @@ docker restart cloudflare-speedtest
 docker rm cloudflare-speedtest
 ```
 
+#### 独立网络配置（软路由环境）
+
+在软路由环境中使用Docker时，建议为容器分配独立IP，并在软路由中将该IP设置为不走代理。
+
+**方法一：使用 Docker Compose 配置独立网络**
+
+```yaml
+# docker-compose.yml
+version: '3.8'
+
+services:
+  cloudflare-speedtest:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cloudflare-speedtest:latest
+    container_name: cloudflare-speedtest
+    volumes:
+      - ./data:/app/data
+      - ./config:/app/config
+    networks:
+      isolated_network:
+        ipv4_address: 172.20.0.10  # 指定独立IP
+    environment:
+      - TZ=Asia/Shanghai
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+
+networks:
+  isolated_network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+```
+
+**方法二：使用 Docker 命令配置独立网络**
+
+```bash
+# 1. 创建独立网络
+docker network create \
+  --driver bridge \
+  --subnet=172.20.0.0/16 \
+  --gateway=172.20.0.1 \
+  isolated_network
+
+# 2. 运行容器并指定独立IP
+docker run -d --name cloudflare-speedtest \
+  --network isolated_network \
+  --ip 172.20.0.10 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config \
+  --restart unless-stopped \
+  ghcr.io/byjoey/yx-tools:latest
+```
+
+**方法三：使用 Macvlan 网络（推荐软路由）**
+
+Macvlan 网络允许容器直接使用物理网络接口，获得独立的 MAC 地址和 IP：
+
+```bash
+# 1. 创建 Macvlan 网络（需要根据实际网络接口调整）
+docker network create -d macvlan \
+  --subnet=192.168.1.0/24 \
+  --gateway=192.168.1.1 \
+  -o parent=eth0 \
+  macvlan_network
+
+# 2. 运行容器并指定独立IP
+docker run -d --name cloudflare-speedtest \
+  --network macvlan_network \
+  --ip 192.168.1.100 \
+  -v $(pwd)/data:/app/data \
+  -v $(pwd)/config:/app/config \
+  --restart unless-stopped \
+  ghcr.io/byjoey/yx-tools:latest
+```
+
+**软路由代理设置**
+
+配置独立IP后，需要在软路由中将该IP设置为不走代理：
+
+1. **OpenWrt/Lede**：
+   - 进入"网络" → "负载均衡" → "规则"
+   - 添加规则：源地址为容器IP（如 `192.168.1.100`），动作选择"直连"或"不走代理"
+
+2. **PassWall/Clash**：
+   - 进入"访问控制" → "局域网设备"
+   - 添加设备规则：IP地址为容器IP，策略选择"直连"或"DIRECT"
+
+3. **V2Ray/Xray**：
+   - 在路由规则中添加：
+   ```json
+   {
+     "type": "field",
+     "ip": ["192.168.1.100/32"],
+     "outboundTag": "direct"
+   }
+   ```
+
+**注意事项**：
+- 确保容器IP与软路由在同一网段
+- 确保容器IP未被其他设备占用
+- 配置后测试容器网络连接是否正常
+- Macvlan 网络需要根据实际网络接口名称调整 `parent` 参数（如 `eth0`、`br-lan` 等）
+
 ## 使用指南
 
 ### 方法一：交互式模式（推荐新手）
