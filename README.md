@@ -533,6 +533,7 @@ python3 cloudflare_speedtest.py --mode proxy --csv /path/to/result.csv
 | `--token` | GitHub Token（GitHub上传需要） | - | ⚠️ | `--token ghp_xxx` |
 | `--file-path` | GitHub文件路径 | cloudflare_ips.txt | ❌ | `--file-path ips.txt` |
 | `--upload-count` | 上传IP数量 | 10 | ❌ | `--upload-count 20` |
+| `--clear` | 上传前清空现有IP（避免IP累积，推荐使用） | false | ❌ | `--clear` |
 
 **说明：**
 - ✅ 必需参数：必须提供
@@ -543,7 +544,14 @@ python3 cloudflare_speedtest.py --mode proxy --csv /path/to/result.csv
 
 **场景1：定时自动测速并上报到API**
 ```bash
-# 每天凌晨2点自动测速并上报
+# 每天凌晨2点自动测速并上报（清空现有IP，推荐）
+python3 cloudflare_speedtest.py --mode beginner \
+  --count 20 --speed 2 --delay 500 \
+  --upload api \
+  --worker-domain example.com --uuid abc123 \
+  --upload-count 20 --clear
+
+# 每天凌晨2点自动测速并上报（IP会累积）
 python3 cloudflare_speedtest.py --mode beginner \
   --count 20 --speed 2 --delay 500 \
   --upload api \
@@ -594,7 +602,18 @@ python3 cloudflare_speedtest.py --mode proxy --csv result3.csv
 
 **上报到 Cloudflare Workers API**
 
-完整示例：
+完整示例（清空现有IP，推荐）：
+```bash
+python3 cloudflare_speedtest.py --mode beginner \
+  --count 20 --speed 2 --delay 500 \
+  --upload api \
+  --worker-domain example.com \
+  --uuid abc123 \
+  --upload-count 20 \
+  --clear
+```
+
+完整示例（IP会累积）：
 ```bash
 python3 cloudflare_speedtest.py --mode beginner \
   --count 20 --speed 2 --delay 500 \
@@ -609,6 +628,7 @@ python3 cloudflare_speedtest.py --mode beginner \
 - `--worker-domain`：您的Worker域名（例如：example.com）
 - `--uuid`：UUID或路径（例如：abc123 或 351c9981-04b6-4103-aa4b-864aa9c91469）
 - `--upload-count`：要上传的IP数量（默认10个）
+- `--clear`：上传前清空现有IP，避免IP累积（推荐使用）
 
 **上报到 GitHub 仓库**
 
@@ -711,15 +731,15 @@ python3 cloudflare_speedtest.py --mode beginner --upload api \
 # 编辑crontab
 crontab -e
 
-# 每天凌晨2点自动测速并上报到API
-0 2 * * * cd /path/to/project && python3 cloudflare_speedtest.py --mode beginner --count 20 --speed 2 --delay 500 --upload api --worker-domain example.com --uuid abc123 >> /var/log/cloudflare_speedtest.log 2>&1
+# 每天凌晨2点自动测速并上报到API（清空现有IP，推荐）
+0 2 * * * cd /path/to/project && python3 cloudflare_speedtest.py --mode beginner --count 20 --speed 2 --delay 500 --upload api --worker-domain example.com --uuid abc123 --clear >> /var/log/cloudflare_speedtest.log 2>&1
 ```
 
 **Windows 计划任务**
 ```batch
 @echo off
 cd /d C:\path\to\project
-python cloudflare_speedtest.py --mode beginner --count 20 --speed 2 --delay 500 --upload api --worker-domain example.com --uuid abc123
+python cloudflare_speedtest.py --mode beginner --count 20 --speed 2 --delay 500 --upload api --worker-domain example.com --uuid abc123 --clear
 ```
 
 **Shell脚本示例**
