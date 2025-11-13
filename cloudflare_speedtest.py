@@ -1090,11 +1090,31 @@ def handle_proxy_mode():
             else:
                 print("✗ 无效选择，请输入 1-4")
         
-        print(f"\n测速参数: 测试{dn_count}个IP, 速度下限{speed_limit}MB/s, 延迟上限{time_limit}ms")
+        # 获取延迟测速线程数
+        print(f"\n⚡ 设置延迟测速线程数")
+        print("说明：线程数越多延迟测速越快，性能弱的设备(如路由器)请勿太高")
+        while True:
+            thread_count = input("请输入延迟测速线程数 [默认: 200, 最多: 1000]: ").strip()
+            if not thread_count:
+                thread_count = "200"
+            try:
+                thread_count_int = int(thread_count)
+                if thread_count_int <= 0:
+                    print("✗ 请输入大于0的数字")
+                    continue
+                if thread_count_int > 1000:
+                    print("✗ 线程数不能超过1000")
+                    continue
+                thread_count = str(thread_count_int)
+                break
+            except ValueError:
+                print("✗ 请输入有效的数字")
+        
+        print(f"\n测速参数: 测试{dn_count}个IP, 速度下限{speed_limit}MB/s, 延迟上限{time_limit}ms, 线程数={thread_count}")
         print("模式: 反代IP列表测速")
         
         # 运行测速
-        result_code = run_speedtest_with_file("ips_ports.txt", dn_count, speed_limit, time_limit)
+        result_code = run_speedtest_with_file("ips_ports.txt", dn_count, speed_limit, time_limit, thread_count)
         
         # 如果测速成功，询问是否上报结果
         if result_code == 0 and os.path.exists("result.csv"):
@@ -1186,11 +1206,32 @@ def handle_beginner_mode(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
         except ValueError:
             print("✗ 请输入有效的数字")
     
+    # 获取延迟测速线程数
+    print(f"\n⚡ 第四步：设置延迟测速线程数")
+    print("说明：线程数越多延迟测速越快，性能弱的设备(如路由器)请勿太高")
+    while True:
+        thread_count = input("请输入延迟测速线程数 [默认: 200, 最多: 1000]: ").strip()
+        if not thread_count:
+            thread_count = "200"
+        try:
+            thread_count_int = int(thread_count)
+            if thread_count_int <= 0:
+                print("✗ 请输入大于0的数字")
+                continue
+            if thread_count_int > 1000:
+                print("✗ 线程数不能超过1000")
+                continue
+            thread_count = str(thread_count_int)
+            break
+        except ValueError:
+            print("✗ 请输入有效的数字")
+    
     print(f"\n✅ 配置完成！")
     print(f"📋 测试参数:")
     print(f"   - 测试IP数量: {dn_count} 个")
     print(f"   - 延迟上限: {time_limit} ms")
     print(f"   - 速度下限: {speed_limit} MB/s")
+    print(f"   - 延迟测速线程数: {thread_count}")
     print("=" * 50)
     
     print(f"\n🎯 开始测速...")
@@ -1212,6 +1253,7 @@ def handle_beginner_mode(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
     
     cmd.extend([
         "-f", ip_file,
+        "-n", thread_count,
         "-dn", dn_count,
         "-sl", speed_limit,
         "-tl", time_limit,
@@ -1237,7 +1279,7 @@ def handle_beginner_mode(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
         print("\n" + "=" * 80)
         print(" 💡 快速复用命令")
         print("=" * 80)
-        cli_cmd = generate_cli_command("beginner", ip_version, None, dn_count, speed_limit, time_limit, upload_info)
+        cli_cmd = generate_cli_command("beginner", ip_version, None, dn_count, speed_limit, time_limit, upload_info, thread_count)
         # 保存命令供定时任务使用
         global LAST_GENERATED_COMMAND
         LAST_GENERATED_COMMAND = cli_cmd
@@ -1250,7 +1292,7 @@ def handle_beginner_mode(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
     else:
         print("\n❌ 测速失败")
     
-    return "ALL", dn_count, speed_limit, time_limit
+    return "ALL", dn_count, speed_limit, time_limit, thread_count
 
 
 def handle_normal_mode(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
@@ -1379,7 +1421,27 @@ def handle_normal_mode(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
         else:
             print("✗ 无效选择，请输入 1-4")
     
-    print(f"\n测速参数: 地区={cfcolo}, 测试{dn_count}个IP, 速度下限{speed_limit}MB/s, 延迟上限{time_limit}ms")
+    # 获取延迟测速线程数
+    print(f"\n⚡ 设置延迟测速线程数")
+    print("说明：线程数越多延迟测速越快，性能弱的设备(如路由器)请勿太高")
+    while True:
+        thread_count = input("请输入延迟测速线程数 [默认: 200, 最多: 1000]: ").strip()
+        if not thread_count:
+            thread_count = "200"
+        try:
+            thread_count_int = int(thread_count)
+            if thread_count_int <= 0:
+                print("✗ 请输入大于0的数字")
+                continue
+            if thread_count_int > 1000:
+                print("✗ 线程数不能超过1000")
+                continue
+            thread_count = str(thread_count_int)
+            break
+        except ValueError:
+            print("✗ 请输入有效的数字")
+    
+    print(f"\n测速参数: 地区={cfcolo}, 测试{dn_count}个IP, 速度下限{speed_limit}MB/s, 延迟上限{time_limit}ms, 线程数={thread_count}")
     print("模式: 常规测速（指定地区）")
     
     # 从地区扫描结果中提取该地区的IP进行测速
@@ -1418,6 +1480,7 @@ def handle_normal_mode(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
             
             cmd.extend([
                 "-f", region_ip_file,
+                "-n", thread_count,
                 "-dn", dn_count,
                 "-sl", speed_limit,
                 "-tl", time_limit,
@@ -1445,7 +1508,7 @@ def handle_normal_mode(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
                 print("\n" + "=" * 80)
                 print(" 💡 快速复用命令")
                 print("=" * 80)
-                cli_cmd = generate_cli_command("normal", ip_version, cfcolo, dn_count, speed_limit, time_limit, upload_info)
+                cli_cmd = generate_cli_command("normal", ip_version, cfcolo, dn_count, speed_limit, time_limit, upload_info, thread_count)
                 # 保存命令供定时任务使用
                 global LAST_GENERATED_COMMAND
                 LAST_GENERATED_COMMAND = cli_cmd
@@ -1549,7 +1612,7 @@ def generate_proxy_list(result_file="result.csv", output_file="ips_ports.txt"):
         return False
 
 
-def run_speedtest_with_file(ip_file, dn_count, speed_limit, time_limit):
+def run_speedtest_with_file(ip_file, dn_count, speed_limit, time_limit, thread_count="200"):
     """使用指定IP文件运行测速（反代模式，不需要机场码）"""
     try:
         # 获取系统信息
@@ -1560,6 +1623,7 @@ def run_speedtest_with_file(ip_file, dn_count, speed_limit, time_limit):
         cmd = [
             f"./{exec_name}",
             "-f", ip_file,
+            "-n", thread_count,
             "-dn", dn_count,
             "-sl", speed_limit,
             "-tl", time_limit,
@@ -1589,7 +1653,7 @@ def run_speedtest_with_file(ip_file, dn_count, speed_limit, time_limit):
         return 1
 
 
-def run_speedtest(exec_name, cfcolo, dn_count, speed_limit, time_limit):
+def run_speedtest(exec_name, cfcolo, dn_count, speed_limit, time_limit, thread_count="200"):
     """运行 CloudflareSpeedTest"""
     print(f"\n开始运行 CloudflareSpeedTest...")
     print(f"测试参数:")
@@ -1597,6 +1661,7 @@ def run_speedtest(exec_name, cfcolo, dn_count, speed_limit, time_limit):
     print(f"  - 测试 IP 数量: {dn_count}")
     print(f"  - 下载速度阈值: {speed_limit} MB/s")
     print(f"  - 延迟阈值: {time_limit} ms")
+    print(f"  - 延迟测速线程数: {thread_count}")
     print("-" * 50)
     
     # 构建命令
@@ -1606,6 +1671,7 @@ def run_speedtest(exec_name, cfcolo, dn_count, speed_limit, time_limit):
         cmd = [f"./{exec_name}"]
     
     cmd.extend([
+        "-n", thread_count,
         "-dn", dn_count,
         "-sl", speed_limit,
         "-tl", time_limit,
@@ -1673,6 +1739,8 @@ def parse_args():
                        help='下载速度下限 MB/s（默认: 1.0）')
     parser.add_argument('--delay', type=int, default=1000,
                        help='延迟上限 ms（默认: 1000）')
+    parser.add_argument('--thread', type=int, default=200,
+                       help='延迟测速线程数；越多延迟测速越快，性能弱的设备(如路由器)请勿太高（默认: 200, 最多: 1000）')
     
     # 常规测速模式参数
     parser.add_argument('--region', type=str,
@@ -1758,6 +1826,12 @@ def run_with_args(args):
         print(f"  测试IP数量: {args.count}")
         print(f"  速度下限: {args.speed} MB/s")
         print(f"  延迟上限: {args.delay} ms")
+        print(f"  延迟测速线程数: {args.thread}")
+        
+        # 验证线程数
+        if args.thread < 1 or args.thread > 1000:
+            print(f"❌ 线程数必须在 1-1000 之间，当前值: {args.thread}")
+            return 1
         
         # 构建测速命令
         if sys.platform == "win32":
@@ -1767,6 +1841,7 @@ def run_with_args(args):
         
         cmd.extend([
             "-f", ip_file,
+            "-n", str(args.thread),
             "-dn", str(args.count),
             "-sl", str(args.speed),
             "-tl", str(args.delay),
@@ -1810,6 +1885,12 @@ def run_with_args(args):
         print(f"  测试IP数量: {args.count}")
         print(f"  速度下限: {args.speed} MB/s")
         print(f"  延迟上限: {args.delay} ms")
+        print(f"  延迟测速线程数: {args.thread}")
+        
+        # 验证线程数
+        if args.thread < 1 or args.thread > 1000:
+            print(f"❌ 线程数必须在 1-1000 之间，当前值: {args.thread}")
+            return 1
         
         # 检查是否有地区扫描结果
         if not os.path.exists("region_scan.csv"):
@@ -1848,6 +1929,7 @@ def run_with_args(args):
         
         cmd.extend([
             "-f", region_ip_file,
+            "-n", str(args.thread),
             "-dn", str(args.count),
             "-sl", str(args.speed),
             "-tl", str(args.delay),
@@ -1908,7 +1990,7 @@ def run_with_args(args):
     return 0
 
 
-def generate_cli_command(mode, ip_version, cfcolo=None, dn_count=None, speed_limit=None, time_limit=None, upload_info=None):
+def generate_cli_command(mode, ip_version, cfcolo=None, dn_count=None, speed_limit=None, time_limit=None, upload_info=None, thread_count="200"):
     """生成对应的命令行命令
     
     Args:
@@ -1921,6 +2003,7 @@ def generate_cli_command(mode, ip_version, cfcolo=None, dn_count=None, speed_lim
             - github_token: GitHub Token (github方式)
             - repo_info: 仓库信息 owner/repo (github方式)
             - file_path: 文件路径 (github方式)
+        thread_count: 延迟测速线程数（默认: 200）
     """
     # 获取实际的应用名（可能是封装后的可执行文件或改名的.py文件）
     import os
@@ -1955,6 +2038,8 @@ def generate_cli_command(mode, ip_version, cfcolo=None, dn_count=None, speed_lim
         cmd_parts.append(f"--speed {speed_limit}")
     if time_limit:
         cmd_parts.append(f"--delay {time_limit}")
+    if thread_count:
+        cmd_parts.append(f"--thread {thread_count}")
     
     # 添加地区码（常规模式）
     if mode == "normal" and cfcolo:
@@ -2084,9 +2169,12 @@ def main():
     # 常规测速模式和小白快速测试模式已经在各自的函数中完成测速并输出命令
     print(f"\n测速已完成")
     
-    # Linux/OpenWrt 环境询问是否设置定时任务
-    if sys.platform.startswith('linux'):
+    # Linux/macOS 环境询问是否设置定时任务（使用 cron）
+    if sys.platform.startswith('linux') or sys.platform == "darwin":
         setup_cron_job()
+    # Windows 环境询问是否设置定时任务（使用任务计划程序）
+    elif sys.platform == "win32":
+        setup_windows_task()
     
     # Windows 系统添加暂停，避免窗口立即关闭
     if sys.platform == "win32":
@@ -2205,15 +2293,19 @@ def check_existing_cron_jobs(command_pattern=None):
 
 
 def setup_cron_job():
-    """设置定时任务"""
+    """设置定时任务（Linux/macOS 使用 cron）"""
     print("\n" + "=" * 70)
     print(" 定时任务设置")
     print("=" * 70)
     
-    # 检测是否是OpenWrt
-    is_openwrt_system = is_openwrt()
-    system_type = "OpenWrt" if is_openwrt_system else "Linux"
-    print(f"检测到 {system_type} 环境，可以设置定时任务")
+    # 检测系统类型
+    if sys.platform == "darwin":
+        system_type = "macOS"
+    elif is_openwrt():
+        system_type = "OpenWrt"
+    else:
+        system_type = "Linux"
+    print(f"检测到 {system_type} 环境，可以设置定时任务（使用 cron）")
     
     # 询问是否要设置定时任务
     choice = input("\n是否要设置定时任务？[y/N]: ").strip().lower()
@@ -2374,6 +2466,194 @@ def setup_cron_job():
     except Exception as e:
         print(f"❌ 设置定时任务失败: {e}")
         print("   请手动使用 'crontab -e' 编辑定时任务")
+
+
+def setup_windows_task():
+    """设置 Windows 定时任务（使用任务计划程序）"""
+    print("\n" + "=" * 70)
+    print(" 定时任务设置")
+    print("=" * 70)
+    print("检测到 Windows 环境，可以设置定时任务（使用任务计划程序）")
+    
+    # 询问是否要设置定时任务
+    choice = input("\n是否要设置定时任务？[y/N]: ").strip().lower()
+    if choice not in ['y', 'yes']:
+        print("跳过设置定时任务")
+        return
+    
+    # 获取本次运行的命令
+    current_command = get_current_command()
+    
+    # 如果是交互模式，从保存的命令中获取
+    if not current_command:
+        global LAST_GENERATED_COMMAND
+        if LAST_GENERATED_COMMAND:
+            current_command = LAST_GENERATED_COMMAND
+        else:
+            print("⚠️  无法获取本次运行的命令，请手动设置定时任务")
+            print("   您可以使用任务计划程序手动创建任务")
+            return
+    
+    # 获取任务名称
+    app_name = os.path.basename(sys.argv[0]).replace('.py', '').replace('.exe', '')
+    task_name = f"CloudflareSpeedTest_{app_name}"
+    
+    # 检查是否已有任务
+    try:
+        result = subprocess.run(
+            ['schtasks', '/query', '/tn', task_name],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+        if result.returncode == 0:
+            print(f"\n⚠️  检测到已存在任务: {task_name}")
+            print("请选择操作：")
+            print("  1. 删除现有任务后创建新任务")
+            print("  2. 取消设置")
+            
+            while True:
+                choice = input("\n请选择 [1/2]: ").strip()
+                if choice == "1":
+                    # 删除现有任务
+                    subprocess.run(
+                        ['schtasks', '/delete', '/tn', task_name, '/f'],
+                        capture_output=True,
+                        text=True,
+                        encoding='utf-8',
+                        errors='replace'
+                    )
+                    print("✓ 已删除现有任务")
+                    break
+                elif choice == "2":
+                    print("取消设置定时任务")
+                    return
+                else:
+                    print("✗ 请输入 1 或 2")
+    except Exception:
+        pass  # 任务不存在，继续创建
+    
+    # 获取时间设置
+    print("\n" + "=" * 70)
+    print(" 设置定时任务时间")
+    print("=" * 70)
+    print("Windows 任务计划程序支持多种触发方式：")
+    print("  1. 每天指定时间（例如: 每天凌晨2点）")
+    print("  2. 每小时（例如: 每小时的第0分钟）")
+    print("  3. 每N分钟（例如: 每30分钟）")
+    print("  4. 每周指定时间（例如: 每周一凌晨3点）")
+    print("=" * 70)
+    
+    print("\n请选择触发方式：")
+    print("  1. 每天指定时间")
+    print("  2. 每小时")
+    print("  3. 每N分钟")
+    print("  4. 每周指定时间")
+    
+    schedule_type = input("\n请选择 [1-4]: ").strip()
+    
+    # 构建 schtasks 命令
+    # 直接使用 current_command，因为它已经包含了完整的命令和参数
+    # 但需要确保路径格式正确（Windows 使用反斜杠）
+    if current_command:
+        # current_command 已经是完整命令，直接使用
+        # 但需要处理路径中的空格（用引号包裹整个命令）
+        full_command = current_command
+        # 如果命令中包含空格路径，需要确保正确转义
+        # schtasks 的 /tr 参数会自动处理引号
+    else:
+        # 如果没有 current_command，构建基本命令
+        script_path = os.path.abspath(sys.argv[0])
+        if script_path.endswith('.py'):
+            python_exe = get_python_executable()
+            if ' ' in python_exe:
+                python_exe = f'"{python_exe}"'
+            if ' ' in script_path:
+                script_path = f'"{script_path}"'
+            full_command = f"{python_exe} {script_path}"
+        else:
+            if ' ' in script_path:
+                script_path = f'"{script_path}"'
+            full_command = script_path
+    
+    # 根据选择的类型构建 schtasks 命令
+    schtasks_cmd = ['schtasks', '/create', '/tn', task_name, '/tr', full_command, '/sc']
+    
+    if schedule_type == "1":
+        # 每天指定时间
+        time_str = input("请输入时间 (HH:MM，例如: 02:00): ").strip()
+        if not time_str:
+            print("✗ 时间不能为空")
+            return
+        schtasks_cmd.extend(['daily', '/st', time_str])
+        
+    elif schedule_type == "2":
+        # 每小时
+        minute = input("请输入分钟数 (0-59，例如: 0): ").strip() or "0"
+        schtasks_cmd.extend(['hourly', '/mo', '1'])
+        # 注意：Windows 任务计划程序的 hourly 不支持指定分钟，需要手动计算
+        print("⚠️  注意：Windows 任务计划程序的每小时触发不支持指定分钟")
+        print("   将设置为每小时的第0分钟执行")
+        
+    elif schedule_type == "3":
+        # 每N分钟
+        minutes = input("请输入分钟数 (例如: 30): ").strip()
+        if not minutes or not minutes.isdigit():
+            print("✗ 请输入有效的数字")
+            return
+        schtasks_cmd.extend(['minute', '/mo', minutes])
+        
+    elif schedule_type == "4":
+        # 每周指定时间
+        day = input("请输入星期几 (1=周一, 2=周二, ..., 7=周日，例如: 1): ").strip()
+        time_str = input("请输入时间 (HH:MM，例如: 03:00): ").strip()
+        if not day or not time_str:
+            print("✗ 星期和时间不能为空")
+            return
+        schtasks_cmd.extend(['weekly', '/d', day, '/st', time_str])
+        
+    else:
+        print("✗ 无效选择")
+        return
+    
+    # 添加其他参数
+    schtasks_cmd.extend(['/f'])  # 强制创建（如果已存在则覆盖）
+    
+    # 确认
+    print(f"\n任务名称: {task_name}")
+    print(f"命令: {full_command}")
+    print(f"触发方式: {schedule_type}")
+    confirm = input("\n确认创建此任务？[Y/n]: ").strip().lower()
+    if confirm in ['n', 'no']:
+        print("取消创建任务")
+        return
+    
+    # 执行创建任务
+    try:
+        result = subprocess.run(
+            schtasks_cmd,
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+        
+        if result.returncode == 0:
+            print("\n✅ 定时任务设置成功！")
+            print(f"任务名称: {task_name}")
+            print("\n💡 提示:")
+            print("  - 使用 'schtasks /query /tn " + task_name + "' 查看任务详情")
+            print("  - 使用 'schtasks /delete /tn " + task_name + " /f' 删除任务")
+            print("  - 使用 'taskschd.msc' 打开任务计划程序图形界面")
+        else:
+            print("❌ 设置定时任务失败")
+            if result.stderr:
+                print(f"错误信息: {result.stderr}")
+            print("\n💡 提示: 可能需要管理员权限，请以管理员身份运行")
+    except Exception as e:
+        print(f"❌ 设置定时任务失败: {e}")
+        print("   请使用任务计划程序（taskschd.msc）手动创建任务")
 
 
 def load_config():
@@ -4003,4 +4283,3 @@ if __name__ == "__main__":
             print("\n" + "=" * 60)
             input("按 Enter 键退出...")
         sys.exit(1)
-
