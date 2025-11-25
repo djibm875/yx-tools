@@ -13,6 +13,7 @@ import subprocess
 import requests
 import json
 import csv
+import argparse
 from pathlib import Path
 from datetime import datetime
 
@@ -48,8 +49,8 @@ def curl_request(url, method='GET', data=None, headers=None, timeout=30):
     cmd.append(url)
     
     try:
-        # 执行curl命令
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        # 执行curl命令，指定编码为utf-8
+        result = subprocess.run(cmd, capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=timeout)
         output = result.stdout
         
         # 分离响应体和状态码
@@ -76,7 +77,11 @@ def curl_request(url, method='GET', data=None, headers=None, timeout=30):
         return CurlResponse(status_code, response_text)
     
     except subprocess.TimeoutExpired:
-        raise Exception("请求超时")
+        raise Exception("请求超时，请检查网络连接")
+    except subprocess.CalledProcessError as e:
+        raise Exception(f"curl命令执行失败: {e}")
+    except FileNotFoundError:
+        raise Exception("curl命令未找到，请确保系统已安装curl")
     except Exception as e:
         raise Exception(f"curl请求失败: {e}")
 
@@ -220,9 +225,125 @@ AIRPORT_CODES = {
 AIRPORT_CODES_URL = "https://raw.githubusercontent.com/cloudflare/cf-ui/master/packages/colo-config/src/data.json"
 AIRPORT_CODES_FILE = "airport_codes.json"
 
-# Cloudflare IP列表URL
+# Cloudflare IP列表URL和文件
 CLOUDFLARE_IP_URL = "https://www.cloudflare.com/ips-v4/"
 CLOUDFLARE_IP_FILE = "Cloudflare.txt"
+CLOUDFLARE_IPV6_URL = "https://www.cloudflare.com/ips-v6/"
+CLOUDFLARE_IPV6_FILE = "Cloudflare_ipv6.txt"
+
+# 默认测速URL
+DEFAULT_SPEEDTEST_URL = "https://speed.cloudflare.com/__down?measId=&bytes=200000000"
+
+# Cloudflare IPv6 地址段（内置）
+# 数据来源：https://www.cloudflare.com/ips-v6/
+CLOUDFLARE_IPV6_RANGES = [
+    # 主要地址段
+    "2400:cb00::/32",
+    "2606:4700::/32",
+    "2803:f800::/32",
+    "2405:b500::/32",
+    "2405:8100::/32",
+    "2a06:98c0::/29",
+    "2c0f:f248::/32",
+    
+    # 详细子网段
+    "2400:cb00:2049::/48",
+    "2400:cb00:f00e::/48",
+    "2606:4700:10::/48",
+    "2606:4700:130::/48",
+    "2606:4700:3000::/48",
+    "2606:4700:3001::/48",
+    "2606:4700:3002::/48",
+    "2606:4700:3003::/48",
+    "2606:4700:3004::/48",
+    "2606:4700:3005::/48",
+    "2606:4700:3006::/48",
+    "2606:4700:3007::/48",
+    "2606:4700:3008::/48",
+    "2606:4700:3009::/48",
+    "2606:4700:3010::/48",
+    "2606:4700:3011::/48",
+    "2606:4700:3012::/48",
+    "2606:4700:3013::/48",
+    "2606:4700:3014::/48",
+    "2606:4700:3015::/48",
+    "2606:4700:3016::/48",
+    "2606:4700:3017::/48",
+    "2606:4700:3018::/48",
+    "2606:4700:3019::/48",
+    "2606:4700:3020::/48",
+    "2606:4700:3021::/48",
+    "2606:4700:3022::/48",
+    "2606:4700:3023::/48",
+    "2606:4700:3024::/48",
+    "2606:4700:3025::/48",
+    "2606:4700:3026::/48",
+    "2606:4700:3027::/48",
+    "2606:4700:3028::/48",
+    "2606:4700:3029::/48",
+    "2606:4700:3030::/48",
+    "2606:4700:3031::/48",
+    "2606:4700:3032::/48",
+    "2606:4700:3033::/48",
+    "2606:4700:3034::/48",
+    "2606:4700:3035::/48",
+    "2606:4700:3036::/48",
+    "2606:4700:3037::/48",
+    "2606:4700:3038::/48",
+    "2606:4700:3039::/48",
+    "2606:4700:a0::/48",
+    "2606:4700:a1::/48",
+    "2606:4700:a8::/48",
+    "2606:4700:a9::/48",
+    "2606:4700:a::/48",
+    "2606:4700:b::/48",
+    "2606:4700:c::/48",
+    "2606:4700:d0::/48",
+    "2606:4700:d1::/48",
+    "2606:4700:d::/48",
+    "2606:4700:e0::/48",
+    "2606:4700:e1::/48",
+    "2606:4700:e2::/48",
+    "2606:4700:e3::/48",
+    "2606:4700:e4::/48",
+    "2606:4700:e5::/48",
+    "2606:4700:e6::/48",
+    "2606:4700:e7::/48",
+    "2606:4700:e::/48",
+    "2606:4700:f1::/48",
+    "2606:4700:f2::/48",
+    "2606:4700:f3::/48",
+    "2606:4700:f4::/48",
+    "2606:4700:f5::/48",
+    "2606:4700:f::/48",
+    "2803:f800:50::/48",
+    "2803:f800:51::/48",
+    "2a06:98c1:3100::/48",
+    "2a06:98c1:3101::/48",
+    "2a06:98c1:3102::/48",
+    "2a06:98c1:3103::/48",
+    "2a06:98c1:3104::/48",
+    "2a06:98c1:3105::/48",
+    "2a06:98c1:3106::/48",
+    "2a06:98c1:3107::/48",
+    "2a06:98c1:3108::/48",
+    "2a06:98c1:3109::/48",
+    "2a06:98c1:310a::/48",
+    "2a06:98c1:310b::/48",
+    "2a06:98c1:310c::/48",
+    "2a06:98c1:310d::/48",
+    "2a06:98c1:310e::/48",
+    "2a06:98c1:310f::/48",
+    "2a06:98c1:3120::/48",
+    "2a06:98c1:3121::/48",
+    "2a06:98c1:3122::/48",
+    "2a06:98c1:3123::/48",
+    "2a06:98c1:3200::/48",
+    "2a06:98c1:50::/48",
+    "2a06:98c1:51::/48",
+    "2a06:98c1:54::/48",
+    "2a06:98c1:58::/48",
+]
 
 # GitHub Release版本 - 使用官方CloudflareSpeedTest
 GITHUB_VERSION = "v2.3.4"
@@ -230,6 +351,23 @@ GITHUB_REPO = "XIU2/CloudflareSpeedTest"
 
 # 配置文件路径
 CONFIG_FILE = ".cloudflare_speedtest_config.json"
+
+# 保存交互模式下生成的命令（用于定时任务）
+LAST_GENERATED_COMMAND = None
+
+
+def generate_ipv6_file():
+    """生成 IPv6 地址列表文件"""
+    try:
+        with open(CLOUDFLARE_IPV6_FILE, 'w', encoding='utf-8') as f:
+            for ipv6_range in CLOUDFLARE_IPV6_RANGES:
+                f.write(ipv6_range + '\n')
+        print(f"✅ IPv6 地址列表已生成: {CLOUDFLARE_IPV6_FILE}")
+        print(f"   共 {len(CLOUDFLARE_IPV6_RANGES)} 个 IPv6 地址段")
+        return True
+    except Exception as e:
+        print(f"❌ 生成 IPv6 地址列表失败: {e}")
+        return False
 
 
 def get_system_info():
@@ -246,6 +384,8 @@ def get_system_info():
         os_type = "win"
     else:
         print(f"不支持的操作系统: {system}")
+        if sys.platform == "win32":
+            input("按 Enter 键退出...")
         sys.exit(1)
     
     # 标准化架构名称
@@ -257,6 +397,8 @@ def get_system_info():
         arch_type = "arm"
     else:
         print(f"不支持的架构: {machine}")
+        if sys.platform == "win32":
+            input("按 Enter 键退出...")
         sys.exit(1)
     
     return os_type, arch_type
@@ -293,7 +435,7 @@ def download_file(url, filename):
             if "SSL module is not available" in str(e):
                 result = subprocess.run([
                     "curl", "-L", "-o", filename, url
-                ], capture_output=True, text=True, timeout=60)
+                ], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60)
                 
                 if result.returncode == 0 and os.path.exists(filename):
                     print(f"✅ 下载完成: {filename}")
@@ -308,7 +450,7 @@ def download_file(url, filename):
     try:
         result = subprocess.run([
             "wget", "-O", filename, url
-        ], capture_output=True, text=True, timeout=60)
+        ], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60)
         
         if result.returncode == 0 and os.path.exists(filename):
             print(f"✅ 下载完成: {filename}")
@@ -324,7 +466,7 @@ def download_file(url, filename):
     try:
         result = subprocess.run([
             "curl", "-L", "-o", filename, url
-        ], capture_output=True, text=True, timeout=60)
+        ], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60)
         
         if result.returncode == 0 and os.path.exists(filename):
             print(f"✅ 下载完成: {filename}")
@@ -342,7 +484,7 @@ def download_file(url, filename):
             ps_cmd = f'Invoke-WebRequest -Uri "{url}" -OutFile "{filename}"'
             result = subprocess.run([
                 "powershell", "-Command", ps_cmd
-            ], capture_output=True, text=True, timeout=60)
+            ], capture_output=True, text=True, encoding='utf-8', errors='replace', timeout=60)
             
             if result.returncode == 0 and os.path.exists(filename):
                 print(f"✅ 下载完成: {filename}")
@@ -461,6 +603,8 @@ def download_cloudflare_speedtest(os_type, arch_type):
                 return proxy_exec_name
             else:
                 print("未找到反代版本文件，程序无法继续")
+                if sys.platform == "win32":
+                    input("按 Enter 键退出...")
                 sys.exit(1)
     else:
         # 解压文件
@@ -501,6 +645,8 @@ def download_cloudflare_speedtest(os_type, arch_type):
                         os.rename(found_executable, final_name)
                     else:
                         print(f"❌ 源文件不存在: {found_executable}")
+                        if sys.platform == "win32":
+                            input("按 Enter 键退出...")
                         sys.exit(1)
                 
                 # 设置执行权限
@@ -517,6 +663,8 @@ def download_cloudflare_speedtest(os_type, arch_type):
                     for file in files:
                         if not file.endswith(('.zip', '.tar.gz', '.txt', '.md')):
                             print(f"  - {os.path.join(root, file)}")
+                if sys.platform == "win32":
+                    input("按 Enter 键退出...")
                 sys.exit(1)
             
             # 清理压缩包
@@ -524,6 +672,8 @@ def download_cloudflare_speedtest(os_type, arch_type):
             
         except Exception as e:
             print(f"解压失败: {e}")
+            if sys.platform == "win32":
+                input("按 Enter 键退出...")
             sys.exit(1)
     
     # 在Unix系统上赋予执行权限
@@ -534,25 +684,58 @@ def download_cloudflare_speedtest(os_type, arch_type):
     return proxy_exec_name
 
 
-def download_cloudflare_ips():
-    """下载 Cloudflare IP 列表"""
+def select_ip_version():
+    """选择IP版本（IPv4或IPv6）"""
+    print("\n" + "=" * 60)
+    print(" IP 版本选择")
+    print("=" * 60)
+    print("  1. IPv4 - 测试 IPv4 地址（推荐，兼容性最好）")
+    print("  2. IPv6 - 测试 IPv6 地址（需要本地网络支持IPv6）")
+    print("=" * 60)
+    
+    while True:
+        choice = input("\n请选择 IP 版本 [1/2，默认：1]: ").strip()
+        if not choice or choice == "1":
+            print("✓ 已选择: IPv4")
+            return "ipv4", CLOUDFLARE_IP_FILE
+        elif choice == "2":
+            print("✓ 已选择: IPv6")
+            return "ipv6", CLOUDFLARE_IPV6_FILE
+        else:
+            print("✗ 请输入 1 或 2")
+
+
+def download_cloudflare_ips(ip_version="ipv4", ip_file=CLOUDFLARE_IP_FILE):
+    """下载或生成 Cloudflare IP 列表
+    
+    Args:
+        ip_version: IP版本 ("ipv4" 或 "ipv6")
+        ip_file: IP文件路径
+    """
     # 检查文件是否已存在
-    if os.path.exists(CLOUDFLARE_IP_FILE):
-        print(f"✅ 使用已有IP文件: {CLOUDFLARE_IP_FILE}")
-        return
+    if os.path.exists(ip_file):
+        print(f"✅ 使用已有IP文件: {ip_file}")
+        return True
     
-    print("正在下载 Cloudflare IP 列表...")
-    
-    if not download_file(CLOUDFLARE_IP_URL, CLOUDFLARE_IP_FILE):
-        print("下载 Cloudflare IP 列表失败")
-        sys.exit(1)
-    
-    # 检查文件是否为空
-    if os.path.getsize(CLOUDFLARE_IP_FILE) == 0:
-        print("Cloudflare IP 列表文件为空")
-        sys.exit(1)
-    
-    print(f"Cloudflare IP 列表已保存到: {CLOUDFLARE_IP_FILE}")
+    if ip_version == "ipv6":
+        # IPv6 使用内置地址段生成
+        print("正在生成 Cloudflare IPv6 地址列表...")
+        return generate_ipv6_file()
+    else:
+        # IPv4 从网络下载
+        print("正在下载 Cloudflare IPv4 列表...")
+        
+        if not download_file(CLOUDFLARE_IP_URL, CLOUDFLARE_IP_FILE):
+            print("下载 Cloudflare IP 列表失败")
+            return False
+        
+        # 检查文件是否为空
+        if os.path.getsize(CLOUDFLARE_IP_FILE) == 0:
+            print("Cloudflare IP 列表文件为空")
+            return False
+        
+        print(f"Cloudflare IP 列表已保存到: {CLOUDFLARE_IP_FILE}")
+        return True
 
 
 def load_local_airport_codes():
@@ -706,8 +889,13 @@ def display_preset_configs():
     print("=" * 60)
 
 
-def get_user_input():
-    """获取用户输入参数"""
+def get_user_input(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
+    """获取用户输入参数
+    
+    Args:
+        ip_file: 要使用的IP文件路径
+        ip_version: IP版本（"ipv4" 或 "ipv6"）
+    """
     # 询问功能选择
     print("\n" + "=" * 60)
     print(" 功能选择")
@@ -723,13 +911,13 @@ def get_user_input():
     
     if choice == "1":
         # 小白快速测试模式
-        return handle_beginner_mode()
+        return handle_beginner_mode(ip_file, ip_version)
     elif choice == "3":
         # 优选反代模式
         return handle_proxy_mode()
     else:
         # 常规测速模式
-        return handle_normal_mode()
+        return handle_normal_mode(ip_file, ip_version)
 
 
 def select_csv_file():
@@ -902,11 +1090,31 @@ def handle_proxy_mode():
             else:
                 print("✗ 无效选择，请输入 1-4")
         
-        print(f"\n测速参数: 测试{dn_count}个IP, 速度下限{speed_limit}MB/s, 延迟上限{time_limit}ms")
+        # 获取延迟测速线程数
+        print(f"\n⚡ 设置延迟测速线程数")
+        print("说明：线程数越多延迟测速越快，性能弱的设备(如路由器)请勿太高")
+        while True:
+            thread_count = input("请输入延迟测速线程数 [默认: 200, 最多: 1000]: ").strip()
+            if not thread_count:
+                thread_count = "200"
+            try:
+                thread_count_int = int(thread_count)
+                if thread_count_int <= 0:
+                    print("✗ 请输入大于0的数字")
+                    continue
+                if thread_count_int > 1000:
+                    print("✗ 线程数不能超过1000")
+                    continue
+                thread_count = str(thread_count_int)
+                break
+            except ValueError:
+                print("✗ 请输入有效的数字")
+        
+        print(f"\n测速参数: 测试{dn_count}个IP, 速度下限{speed_limit}MB/s, 延迟上限{time_limit}ms, 线程数={thread_count}")
         print("模式: 反代IP列表测速")
         
         # 运行测速
-        result_code = run_speedtest_with_file("ips_ports.txt", dn_count, speed_limit, time_limit)
+        result_code = run_speedtest_with_file("ips_ports.txt", dn_count, speed_limit, time_limit, thread_count)
         
         # 如果测速成功，询问是否上报结果
         if result_code == 0 and os.path.exists("result.csv"):
@@ -918,8 +1126,13 @@ def handle_proxy_mode():
         return None, None, None, None
 
 
-def handle_beginner_mode():
-    """处理小白快速测试模式"""
+def handle_beginner_mode(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
+    """处理小白快速测试模式
+    
+    Args:
+        ip_file: 要使用的IP文件路径
+        ip_version: IP版本（"ipv4" 或 "ipv6"）
+    """
     print("\n" + "=" * 70)
     print(" 小白快速测试模式")
     print("=" * 70)
@@ -993,11 +1206,32 @@ def handle_beginner_mode():
         except ValueError:
             print("✗ 请输入有效的数字")
     
+    # 获取延迟测速线程数
+    print(f"\n⚡ 第四步：设置延迟测速线程数")
+    print("说明：线程数越多延迟测速越快，性能弱的设备(如路由器)请勿太高")
+    while True:
+        thread_count = input("请输入延迟测速线程数 [默认: 200, 最多: 1000]: ").strip()
+        if not thread_count:
+            thread_count = "200"
+        try:
+            thread_count_int = int(thread_count)
+            if thread_count_int <= 0:
+                print("✗ 请输入大于0的数字")
+                continue
+            if thread_count_int > 1000:
+                print("✗ 线程数不能超过1000")
+                continue
+            thread_count = str(thread_count_int)
+            break
+        except ValueError:
+            print("✗ 请输入有效的数字")
+    
     print(f"\n✅ 配置完成！")
     print(f"📋 测试参数:")
     print(f"   - 测试IP数量: {dn_count} 个")
     print(f"   - 延迟上限: {time_limit} ms")
     print(f"   - 速度下限: {speed_limit} MB/s")
+    print(f"   - 延迟测速线程数: {thread_count}")
     print("=" * 50)
     
     print(f"\n🎯 开始测速...")
@@ -1018,10 +1252,12 @@ def handle_beginner_mode():
         cmd = [f"./{exec_name}"]
     
     cmd.extend([
-        "-f", CLOUDFLARE_IP_FILE,
+        "-f", ip_file,
+        "-n", thread_count,
         "-dn", dn_count,
         "-sl", speed_limit,
         "-tl", time_limit,
+        "-url", DEFAULT_SPEEDTEST_URL,
         "-o", "result.csv"
     ])
     
@@ -1029,7 +1265,7 @@ def handle_beginner_mode():
     print("=" * 50)
     
     # 运行测速
-    result = subprocess.run(cmd)
+    result = subprocess.run(cmd, encoding='utf-8', errors='replace')
     
     if result.returncode == 0:
         print("\n✅ 测速完成！结果已保存到 result.csv")
@@ -1037,15 +1273,35 @@ def handle_beginner_mode():
         print("💡 提示：结果文件中的IP按速度从快到慢排序")
         
         # 询问是否上报结果
-        upload_results_to_api("result.csv")
+        upload_info = upload_results_to_api("result.csv")
+        
+        # 输出对应的命令行命令
+        print("\n" + "=" * 80)
+        print(" 💡 快速复用命令")
+        print("=" * 80)
+        cli_cmd = generate_cli_command("beginner", ip_version, None, dn_count, speed_limit, time_limit, upload_info, thread_count)
+        # 保存命令供定时任务使用
+        global LAST_GENERATED_COMMAND
+        LAST_GENERATED_COMMAND = cli_cmd
+        print("本次交互对应的命令行命令：")
+        print("-" * 80)
+        print(cli_cmd)
+        print("-" * 80)
+        print("💡 提示：您可以复制上面的命令，下次直接使用命令行模式运行")
+        print("=" * 80)
     else:
         print("\n❌ 测速失败")
     
-    return "ALL", dn_count, speed_limit, time_limit
+    return "ALL", dn_count, speed_limit, time_limit, thread_count
 
 
-def handle_normal_mode():
-    """处理常规测速模式"""
+def handle_normal_mode(ip_file=CLOUDFLARE_IP_FILE, ip_version="ipv4"):
+    """处理常规测速模式
+    
+    Args:
+        ip_file: 要使用的IP文件路径
+        ip_version: IP版本（"ipv4" 或 "ipv6"）
+    """
     print("\n开始检测可用地区...")
     print("正在使用HTTPing模式检测各地区可用性...")
     
@@ -1165,7 +1421,27 @@ def handle_normal_mode():
         else:
             print("✗ 无效选择，请输入 1-4")
     
-    print(f"\n测速参数: 地区={cfcolo}, 测试{dn_count}个IP, 速度下限{speed_limit}MB/s, 延迟上限{time_limit}ms")
+    # 获取延迟测速线程数
+    print(f"\n⚡ 设置延迟测速线程数")
+    print("说明：线程数越多延迟测速越快，性能弱的设备(如路由器)请勿太高")
+    while True:
+        thread_count = input("请输入延迟测速线程数 [默认: 200, 最多: 1000]: ").strip()
+        if not thread_count:
+            thread_count = "200"
+        try:
+            thread_count_int = int(thread_count)
+            if thread_count_int <= 0:
+                print("✗ 请输入大于0的数字")
+                continue
+            if thread_count_int > 1000:
+                print("✗ 线程数不能超过1000")
+                continue
+            thread_count = str(thread_count_int)
+            break
+        except ValueError:
+            print("✗ 请输入有效的数字")
+    
+    print(f"\n测速参数: 地区={cfcolo}, 测试{dn_count}个IP, 速度下限{speed_limit}MB/s, 延迟上限{time_limit}ms, 线程数={thread_count}")
     print("模式: 常规测速（指定地区）")
     
     # 从地区扫描结果中提取该地区的IP进行测速
@@ -1177,9 +1453,9 @@ def handle_normal_mode():
         with open("region_scan.csv", 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
-                colo = row.get('地区码', '').strip()
+                colo = (row.get('地区码') or '').strip()
                 if colo == cfcolo:
-                    ip = row.get('IP 地址', '').strip()
+                    ip = (row.get('IP 地址') or '').strip()
                     if ip:
                         region_ips.append(ip)
         
@@ -1204,9 +1480,11 @@ def handle_normal_mode():
             
             cmd.extend([
                 "-f", region_ip_file,
+                "-n", thread_count,
                 "-dn", dn_count,
                 "-sl", speed_limit,
                 "-tl", time_limit,
+                "-url", DEFAULT_SPEEDTEST_URL,
                 "-o", "result.csv"
             ])
             
@@ -1214,7 +1492,7 @@ def handle_normal_mode():
             print("=" * 50)
             
             # 运行测速
-            result = subprocess.run(cmd)
+            result = subprocess.run(cmd, encoding='utf-8', errors='replace')
             
             # 清理临时文件
             if os.path.exists(region_ip_file):
@@ -1224,7 +1502,22 @@ def handle_normal_mode():
                 print("\n✅ 测速完成！结果已保存到 result.csv")
                 
                 # 询问是否上报结果
-                upload_results_to_api("result.csv")
+                upload_info = upload_results_to_api("result.csv")
+                
+                # 输出对应的命令行命令
+                print("\n" + "=" * 80)
+                print(" 💡 快速复用命令")
+                print("=" * 80)
+                cli_cmd = generate_cli_command("normal", ip_version, cfcolo, dn_count, speed_limit, time_limit, upload_info, thread_count)
+                # 保存命令供定时任务使用
+                global LAST_GENERATED_COMMAND
+                LAST_GENERATED_COMMAND = cli_cmd
+                print("本次交互对应的命令行命令：")
+                print("-" * 80)
+                print(cli_cmd)
+                print("-" * 80)
+                print("💡 提示：您可以复制上面的命令，下次直接使用命令行模式运行")
+                print("=" * 80)
             else:
                 print("\n❌ 测速失败")
         else:
@@ -1264,20 +1557,20 @@ def generate_proxy_list(result_file="result.csv", output_file="ips_ports.txt"):
             
             # 查找IP列
             for key in row.keys():
-                if 'ip' in key.lower() and '地址' in key:
-                    ip = row[key].strip()
+                if 'ip' in key.lower() and '地址' in key and row[key] is not None:
+                    ip = str(row[key]).strip()
                     break
-                elif key.lower() == 'ip':
-                    ip = row[key].strip()
+                elif key.lower() == 'ip' and row[key] is not None:
+                    ip = str(row[key]).strip()
                     break
             
             # 查找端口列
             for key in row.keys():
-                if '端口' in key:
-                    port = row[key].strip()
+                if '端口' in key and row[key] is not None:
+                    port = str(row[key]).strip()
                     break
-                elif key.lower() == 'port':
-                    port = row[key].strip()
+                elif key.lower() == 'port' and row[key] is not None:
+                    port = str(row[key]).strip()
                     break
             
             # 如果IP地址中包含端口信息（如 1.2.3.4:443），提取端口
@@ -1319,7 +1612,7 @@ def generate_proxy_list(result_file="result.csv", output_file="ips_ports.txt"):
         return False
 
 
-def run_speedtest_with_file(ip_file, dn_count, speed_limit, time_limit):
+def run_speedtest_with_file(ip_file, dn_count, speed_limit, time_limit, thread_count="200"):
     """使用指定IP文件运行测速（反代模式，不需要机场码）"""
     try:
         # 获取系统信息
@@ -1330,9 +1623,11 @@ def run_speedtest_with_file(ip_file, dn_count, speed_limit, time_limit):
         cmd = [
             f"./{exec_name}",
             "-f", ip_file,
+            "-n", thread_count,
             "-dn", dn_count,
             "-sl", speed_limit,
             "-tl", time_limit,
+            "-url", DEFAULT_SPEEDTEST_URL,
             "-p", "20"  # 显示前20个结果
         ]
         
@@ -1341,7 +1636,7 @@ def run_speedtest_with_file(ip_file, dn_count, speed_limit, time_limit):
         
         # 运行测速 - 实时显示输出
         print("正在运行测速，请稍候...")
-        result = subprocess.run(cmd, text=True)
+        result = subprocess.run(cmd, text=True, encoding='utf-8', errors='replace')
         
         if result.returncode == 0:
             print("\n测速完成！")
@@ -1358,7 +1653,7 @@ def run_speedtest_with_file(ip_file, dn_count, speed_limit, time_limit):
         return 1
 
 
-def run_speedtest(exec_name, cfcolo, dn_count, speed_limit, time_limit):
+def run_speedtest(exec_name, cfcolo, dn_count, speed_limit, time_limit, thread_count="200"):
     """运行 CloudflareSpeedTest"""
     print(f"\n开始运行 CloudflareSpeedTest...")
     print(f"测试参数:")
@@ -1366,6 +1661,7 @@ def run_speedtest(exec_name, cfcolo, dn_count, speed_limit, time_limit):
     print(f"  - 测试 IP 数量: {dn_count}")
     print(f"  - 下载速度阈值: {speed_limit} MB/s")
     print(f"  - 延迟阈值: {time_limit} ms")
+    print(f"  - 延迟测速线程数: {thread_count}")
     print("-" * 50)
     
     # 构建命令
@@ -1375,10 +1671,12 @@ def run_speedtest(exec_name, cfcolo, dn_count, speed_limit, time_limit):
         cmd = [f"./{exec_name}"]
     
     cmd.extend([
+        "-n", thread_count,
         "-dn", dn_count,
         "-sl", speed_limit,
         "-tl", time_limit,
-        "-f", CLOUDFLARE_IP_FILE
+        "-f", CLOUDFLARE_IP_FILE,
+        "-url", DEFAULT_SPEEDTEST_URL
     ])
     
     try:
@@ -1393,8 +1691,421 @@ def run_speedtest(exec_name, cfcolo, dn_count, speed_limit, time_limit):
         return 1
 
 
+def parse_args():
+    """解析命令行参数"""
+    parser = argparse.ArgumentParser(
+        description='Cloudflare SpeedTest 跨平台自动化脚本',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+示例:
+  # 快速测试模式（默认参数）
+  python cloudflare_speedtest.py --mode beginner
+  
+  # 指定测试参数
+  python cloudflare_speedtest.py --mode beginner --count 20 --speed 2 --delay 500
+  
+  # 常规测速模式（需要先运行地区检测）
+  python cloudflare_speedtest.py --mode normal --region HKG --count 10
+  
+  # 优选反代模式
+  python cloudflare_speedtest.py --mode proxy --csv result.csv
+  
+  # 指定IP版本
+  python cloudflare_speedtest.py --mode beginner --ipv6
+  
+  # 上传结果到API（清空现有IP）
+  python cloudflare_speedtest.py --mode beginner --upload api --worker-domain example.com --uuid abc123 --clear
+  
+  # 上传结果到API（不清空，IP会累积）
+  python cloudflare_speedtest.py --mode beginner --upload api --worker-domain example.com --uuid abc123
+  
+  # 上传结果到GitHub
+  python cloudflare_speedtest.py --mode beginner --upload github --repo owner/repo --token ghp_xxx
+        """
+    )
+    
+    # 模式选择（必需参数）
+    parser.add_argument('--mode', choices=['beginner', 'normal', 'proxy'], required=True,
+                       help='运行模式: beginner(小白快速测试), normal(常规测速), proxy(优选反代)')
+    
+    # IP版本
+    parser.add_argument('--ipv6', action='store_true',
+                       help='使用IPv6（默认使用IPv4）')
+    
+    # 测试参数
+    parser.add_argument('--count', type=int, default=10,
+                       help='测试IP数量（默认: 10）')
+    parser.add_argument('--speed', type=float, default=1.0,
+                       help='下载速度下限 MB/s（默认: 1.0）')
+    parser.add_argument('--delay', type=int, default=1000,
+                       help='延迟上限 ms（默认: 1000）')
+    parser.add_argument('--thread', type=int, default=200,
+                       help='延迟测速线程数；越多延迟测速越快，性能弱的设备(如路由器)请勿太高（默认: 200, 最多: 1000）')
+    
+    # 常规测速模式参数
+    parser.add_argument('--region', type=str,
+                       help='地区码（常规测速模式需要，例如: HKG, SIN）')
+    
+    # 优选反代模式参数
+    parser.add_argument('--csv', type=str, default='result.csv',
+                       help='CSV文件路径（优选反代模式，默认: result.csv）')
+    
+    # 上传参数
+    parser.add_argument('--upload', choices=['api', 'github', 'none'], default='none',
+                       help='上传方式: api(Cloudflare Workers API), github(GitHub仓库), none(不上传)')
+    
+    # Cloudflare Workers API参数
+    parser.add_argument('--worker-domain', type=str,
+                       help='Worker域名（API上传方式需要）')
+    parser.add_argument('--uuid', type=str,
+                       help='UUID或路径（API上传方式需要）')
+    
+    # GitHub参数
+    parser.add_argument('--repo', type=str,
+                       help='GitHub仓库路径，格式: owner/repo（GitHub上传方式需要）')
+    parser.add_argument('--token', type=str,
+                       help='GitHub Personal Access Token（GitHub上传方式需要）')
+    parser.add_argument('--file-path', type=str, default='cloudflare_ips.txt',
+                       help='GitHub文件路径（默认: cloudflare_ips.txt）')
+    
+    # 其他参数
+    parser.add_argument('--upload-count', type=int, default=10,
+                       help='上传IP数量（默认: 10）')
+    parser.add_argument('--clear', action='store_true',
+                       help='上传前清空现有IP（避免IP累积，推荐使用）')
+    
+    return parser.parse_args()
+
+
+def run_with_args(args):
+    """使用命令行参数运行"""
+    # 设置控制台编码（Windows 兼容）
+    if sys.platform == "win32":
+        try:
+            import codecs
+            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.detach())
+            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.detach())
+        except:
+            pass
+    
+    print("=" * 80)
+    print(" Cloudflare SpeedTest 跨平台自动化脚本（命令行模式）")
+    print("=" * 80)
+    
+    # 获取系统信息
+    os_type, arch_type = get_system_info()
+    print(f"\n[系统信息]")
+    print(f"  操作系统: {os_type}")
+    print(f"  架构类型: {arch_type}")
+    print(f"  Python版本: {sys.version.split()[0]}")
+    
+    # 加载本地机场码配置（如果存在）
+    load_local_airport_codes()
+    
+    # 下载 CloudflareSpeedTest
+    print(f"\n[程序准备]")
+    exec_name = download_cloudflare_speedtest(os_type, arch_type)
+    
+    # 选择 IP 版本
+    if args.ipv6:
+        ip_version, ip_file = "ipv6", CLOUDFLARE_IPV6_FILE
+        print("✓ 已选择: IPv6")
+    else:
+        ip_version, ip_file = "ipv4", CLOUDFLARE_IP_FILE
+        print("✓ 已选择: IPv4")
+    
+    # 下载或生成 Cloudflare IP 列表
+    if not download_cloudflare_ips(ip_version, ip_file):
+        print("❌ 准备IP列表失败")
+        return 1
+    
+    # 根据模式运行
+    if args.mode == 'beginner':
+        # 小白快速测试模式
+        print(f"\n[小白快速测试模式]")
+        print(f"  测试IP数量: {args.count}")
+        print(f"  速度下限: {args.speed} MB/s")
+        print(f"  延迟上限: {args.delay} ms")
+        print(f"  延迟测速线程数: {args.thread}")
+        
+        # 验证线程数
+        if args.thread < 1 or args.thread > 1000:
+            print(f"❌ 线程数必须在 1-1000 之间，当前值: {args.thread}")
+            return 1
+        
+        # 构建测速命令
+        if sys.platform == "win32":
+            cmd = [exec_name]
+        else:
+            cmd = [f"./{exec_name}"]
+        
+        cmd.extend([
+            "-f", ip_file,
+            "-n", str(args.thread),
+            "-dn", str(args.count),
+            "-sl", str(args.speed),
+            "-tl", str(args.delay),
+            "-url", DEFAULT_SPEEDTEST_URL,
+            "-o", "result.csv"
+        ])
+        
+        print(f"\n运行命令: {' '.join(cmd)}")
+        print("=" * 50)
+        
+        result = subprocess.run(cmd, encoding='utf-8', errors='replace')
+        
+        if result.returncode == 0:
+            print("\n✅ 测速完成！结果已保存到 result.csv")
+            
+            # 处理上传
+            if args.upload == 'api':
+                if not args.worker_domain or not args.uuid:
+                    print("❌ API上传需要提供 --worker-domain 和 --uuid 参数")
+                else:
+                    # 调用命令行模式的上传函数
+                    upload_to_cloudflare_api_cli("result.csv", args.worker_domain, args.uuid, args.upload_count, clear_existing=args.clear)
+            elif args.upload == 'github':
+                if not args.repo or not args.token:
+                    print("❌ GitHub上传需要提供 --repo 和 --token 参数")
+                else:
+                    # 调用命令行模式的上传函数
+                    upload_to_github_cli("result.csv", args.repo, args.token, args.file_path, args.upload_count)
+        else:
+            print("\n❌ 测速失败")
+            return 1
+            
+    elif args.mode == 'normal':
+        # 常规测速模式
+        if not args.region:
+            print("❌ 常规测速模式需要提供 --region 参数（例如: --region HKG）")
+            return 1
+        
+        print(f"\n[常规测速模式]")
+        print(f"  地区码: {args.region}")
+        print(f"  测试IP数量: {args.count}")
+        print(f"  速度下限: {args.speed} MB/s")
+        print(f"  延迟上限: {args.delay} ms")
+        print(f"  延迟测速线程数: {args.thread}")
+        
+        # 验证线程数
+        if args.thread < 1 or args.thread > 1000:
+            print(f"❌ 线程数必须在 1-1000 之间，当前值: {args.thread}")
+            return 1
+        
+        # 检查是否有地区扫描结果
+        if not os.path.exists("region_scan.csv"):
+            print("⚠️  未找到地区扫描结果文件，建议先运行交互式模式进行地区检测")
+            print("   或者使用小白快速测试模式")
+            return 1
+        
+        # 从地区扫描结果中提取该地区的IP
+        region_ips = []
+        with open("region_scan.csv", 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                colo = (row.get('地区码') or '').strip()
+                if colo == args.region:
+                    ip = (row.get('IP 地址') or '').strip()
+                    if ip:
+                        region_ips.append(ip)
+        
+        if not region_ips:
+            print(f"❌ 未找到 {args.region} 地区的IP")
+            return 1
+        
+        # 创建该地区的IP文件
+        region_ip_file = f"{args.region.lower()}_ips.txt"
+        with open(region_ip_file, 'w', encoding='utf-8') as f:
+            for ip in region_ips:
+                f.write(f"{ip}\n")
+        
+        print(f"找到 {len(region_ips)} 个 {args.region} 地区的IP，开始测速...")
+        
+        # 构建测速命令
+        if sys.platform == "win32":
+            cmd = [exec_name]
+        else:
+            cmd = [f"./{exec_name}"]
+        
+        cmd.extend([
+            "-f", region_ip_file,
+            "-n", str(args.thread),
+            "-dn", str(args.count),
+            "-sl", str(args.speed),
+            "-tl", str(args.delay),
+            "-url", DEFAULT_SPEEDTEST_URL,
+            "-o", "result.csv"
+        ])
+        
+        print(f"\n运行命令: {' '.join(cmd)}")
+        print("=" * 50)
+        
+        result = subprocess.run(cmd, encoding='utf-8', errors='replace')
+        
+        # 清理临时文件
+        if os.path.exists(region_ip_file):
+            os.remove(region_ip_file)
+        
+        if result.returncode == 0:
+            print("\n✅ 测速完成！结果已保存到 result.csv")
+            
+            # 处理上传
+            if args.upload == 'api':
+                if not args.worker_domain or not args.uuid:
+                    print("❌ API上传需要提供 --worker-domain 和 --uuid 参数")
+                else:
+                    # 调用命令行模式的上传函数
+                    upload_to_cloudflare_api_cli("result.csv", args.worker_domain, args.uuid, args.upload_count, clear_existing=args.clear)
+            elif args.upload == 'github':
+                if not args.repo or not args.token:
+                    print("❌ GitHub上传需要提供 --repo 和 --token 参数")
+                else:
+                    # 调用命令行模式的上传函数
+                    upload_to_github_cli("result.csv", args.repo, args.token, args.file_path, args.upload_count)
+        else:
+            print("\n❌ 测速失败")
+            return 1
+            
+    elif args.mode == 'proxy':
+        # 优选反代模式
+        print(f"\n[优选反代模式]")
+        print(f"  CSV文件: {args.csv}")
+        
+        if not os.path.exists(args.csv):
+            print(f"❌ 未找到CSV文件: {args.csv}")
+            return 1
+        
+        # 生成反代IP列表
+        success = generate_proxy_list(args.csv, "ips_ports.txt")
+        if success:
+            print("\n✅ 优选反代功能完成！")
+            print("  生成的文件: ips_ports.txt")
+        else:
+            print("\n❌ 优选反代功能失败")
+            return 1
+    else:
+        print("❌ 请指定运行模式: --mode beginner/normal/proxy")
+        return 1
+    
+    return 0
+
+
+def generate_cli_command(mode, ip_version, cfcolo=None, dn_count=None, speed_limit=None, time_limit=None, upload_info=None, thread_count="200"):
+    """生成对应的命令行命令
+    
+    Args:
+        upload_info: 上传配置信息字典，可以包含:
+            - upload_method: 'api' 或 'github'
+            - worker_domain: Cloudflare Workers 域名 (api方式)
+            - uuid: UUID或路径 (api方式)
+            - upload_count: 上传数量 (api方式)
+            - clear_existing: 是否清空现有IP (api方式，布尔值)
+            - github_token: GitHub Token (github方式)
+            - repo_info: 仓库信息 owner/repo (github方式)
+            - file_path: 文件路径 (github方式)
+        thread_count: 延迟测速线程数（默认: 200）
+    """
+    # 获取实际的应用名（可能是封装后的可执行文件或改名的.py文件）
+    import os
+    script_path = os.path.abspath(sys.argv[0])  # 使用绝对路径
+    app_name = os.path.basename(script_path)
+    
+    # 判断是否是Python脚本（.py文件）还是封装后的可执行文件
+    if app_name.endswith('.py'):
+        # Python脚本，使用完整路径的Python可执行文件（避免cron找不到python3）
+        python_exe = get_python_executable()
+        cmd_parts = [python_exe, script_path]
+    else:
+        # 封装后的可执行文件，使用绝对路径
+        cmd_parts = [script_path]
+    
+    # 添加模式
+    if mode == "beginner":
+        cmd_parts.append("--mode beginner")
+    elif mode == "normal":
+        cmd_parts.append("--mode normal")
+    elif mode == "proxy":
+        cmd_parts.append("--mode proxy")
+    
+    # 添加IP版本
+    if ip_version == "ipv6":
+        cmd_parts.append("--ipv6")
+    
+    # 添加参数
+    if dn_count:
+        cmd_parts.append(f"--count {dn_count}")
+    if speed_limit:
+        cmd_parts.append(f"--speed {speed_limit}")
+    if time_limit:
+        cmd_parts.append(f"--delay {time_limit}")
+    if thread_count:
+        cmd_parts.append(f"--thread {thread_count}")
+    
+    # 添加地区码（常规模式）
+    if mode == "normal" and cfcolo:
+        cmd_parts.append(f"--region {cfcolo}")
+    
+    # 添加上传配置
+    if upload_info:
+        if upload_info.get("upload_method") == "api":
+            cmd_parts.append("--upload api")
+            if upload_info.get("worker_domain"):
+                cmd_parts.append(f"--worker-domain {upload_info['worker_domain']}")
+            if upload_info.get("uuid"):
+                cmd_parts.append(f"--uuid {upload_info['uuid']}")
+            if upload_info.get("upload_count"):
+                cmd_parts.append(f"--upload-count {upload_info['upload_count']}")
+            # 如果选择了清空选项，添加 --clear 参数
+            if upload_info.get("clear_existing"):
+                cmd_parts.append("--clear")
+        elif upload_info.get("upload_method") == "github":
+            cmd_parts.append("--upload github")
+            if upload_info.get("github_token"):
+                # Token较长，使用引号包裹
+                cmd_parts.append(f"--token '{upload_info['github_token']}'")
+            if upload_info.get("repo_info"):
+                cmd_parts.append(f"--repo {upload_info['repo_info']}")
+            if upload_info.get("file_path"):
+                cmd_parts.append(f"--file-path {upload_info['file_path']}")
+            if upload_info.get("upload_count"):
+                cmd_parts.append(f"--upload-count {upload_info['upload_count']}")
+    
+    return " ".join(cmd_parts)
+
+
 def main():
     """主函数"""
+    # 检查是否有命令行参数
+    if len(sys.argv) > 1:
+        # 命令行模式
+        args = parse_args()
+        return run_with_args(args)
+    
+    # 检查是否是交互式环境（非交互式环境如cron、Docker容器等）
+    try:
+        is_interactive = sys.stdin.isatty()
+    except:
+        # 如果无法检测，假设是交互式环境
+        is_interactive = True
+    
+    # 如果不是交互式环境，显示帮助信息并退出
+    if not is_interactive:
+        print("=" * 80)
+        print(" Cloudflare SpeedTest 跨平台自动化脚本")
+        print("=" * 80)
+        print("检测到非交互式环境，请使用命令行参数模式运行。")
+        print("")
+        print("示例命令：")
+        print("  python3 cloudflare_speedtest.py --mode beginner --count 10 --speed 1 --delay 1000")
+        print("  python3 cloudflare_speedtest.py --mode normal --region HKG --count 10")
+        print("  python3 cloudflare_speedtest.py --mode proxy --csv result.csv")
+        print("")
+        print("查看完整帮助：")
+        print("  python3 cloudflare_speedtest.py --help")
+        print("=" * 80)
+        return 1
+    
+    # 交互式模式
     # 设置控制台编码（Windows 兼容）
     if sys.platform == "win32":
         try:
@@ -1428,8 +2139,13 @@ def main():
     print(f"\n[程序准备]")
     exec_name = download_cloudflare_speedtest(os_type, arch_type)
     
-    # 下载 Cloudflare IP 列表
-    download_cloudflare_ips()
+    # 选择 IP 版本
+    ip_version, ip_file = select_ip_version()
+    
+    # 下载或生成 Cloudflare IP 列表
+    if not download_cloudflare_ips(ip_version, ip_file):
+        print("❌ 准备IP列表失败")
+        return 1
     
     # 获取用户输入
     print(f"\n[参数配置]")
@@ -1439,18 +2155,505 @@ def main():
     print(" 博客 https://joeyblog.net")
     print(" Telegram交流群: https://t.me/+ft-zI76oovgwNmRh")
     print("=" * 60)
-    result = get_user_input()
+    result = get_user_input(ip_file, ip_version)
     
     # 检查是否是优选反代模式
     if result == (None, None, None, None):
         print("\n优选反代功能已完成，程序退出")
+        # Windows 系统添加暂停，避免窗口立即关闭
+        if sys.platform == "win32":
+            print("\n" + "=" * 60)
+            input("按 Enter 键退出...")
         return 0
     
-    cfcolo, dn_count, speed_limit, time_limit = result
+    # 常规测速模式和小白快速测试模式已经在各自的函数中完成测速并输出命令
+    print(f"\n测速已完成")
     
-    # 常规测速模式已经在handle_normal_mode中完成测速
-    print(f"\n常规测速已完成")
+    # Linux/macOS 环境询问是否设置定时任务（使用 cron）
+    if sys.platform.startswith('linux') or sys.platform == "darwin":
+        setup_cron_job()
+    # Windows 环境询问是否设置定时任务（使用任务计划程序）
+    elif sys.platform == "win32":
+        setup_windows_task()
+    
+    # Windows 系统添加暂停，避免窗口立即关闭
+    if sys.platform == "win32":
+        print("\n" + "=" * 60)
+        input("按 Enter 键退出...")
+    
     return 0
+
+
+def is_openwrt():
+    """检测是否是OpenWrt系统"""
+    try:
+        # 检查是否存在OpenWrt特有的文件
+        if os.path.exists('/etc/openwrt_release'):
+            return True
+        # 检查uname输出
+        result = subprocess.run(['uname', '-a'], capture_output=True, text=True, encoding='utf-8', errors='replace')
+        if result.returncode == 0 and 'openwrt' in result.stdout.lower():
+            return True
+    except:
+        pass
+    return False
+
+
+def get_python_executable():
+    """获取Python可执行文件的完整路径（用于cron任务）"""
+    import shutil
+    
+    # 优先使用当前运行的Python解释器路径
+    python_exe = sys.executable
+    
+    # 如果是相对路径或不在PATH中，尝试查找完整路径
+    if not os.path.isabs(python_exe) or not os.path.exists(python_exe):
+        # 尝试使用which命令查找
+        try:
+            if sys.platform == "win32":
+                # Windows使用where命令
+                result = subprocess.run(['where', 'python'], capture_output=True, text=True, timeout=5)
+            else:
+                # Unix系统使用which命令
+                result = subprocess.run(['which', 'python3'], capture_output=True, text=True, timeout=5)
+            
+            if result.returncode == 0:
+                found_path = result.stdout.strip().split('\n')[0]
+                if found_path and os.path.exists(found_path):
+                    python_exe = found_path
+        except:
+            pass
+    
+    # 如果还是找不到，尝试使用shutil.which
+    if not os.path.exists(python_exe):
+        try:
+            if sys.platform == "win32":
+                found_path = shutil.which('python')
+            else:
+                found_path = shutil.which('python3')
+            if found_path:
+                python_exe = found_path
+        except:
+            pass
+    
+    return python_exe
+
+
+def get_current_command():
+    """获取本次运行的完整命令（用于定时任务，使用绝对路径）"""
+    import os
+    
+    # 获取脚本的绝对路径
+    script_path = os.path.abspath(sys.argv[0])
+    app_name = os.path.basename(script_path)
+    
+    # 如果是命令行模式，从sys.argv重新构建命令
+    if len(sys.argv) > 1:
+        if app_name.endswith('.py'):
+            # 使用完整路径的Python可执行文件
+            python_exe = get_python_executable()
+            # 使用绝对路径
+            cmd_parts = [python_exe, script_path] + sys.argv[1:]
+        else:
+            # 使用绝对路径
+            cmd_parts = [script_path] + sys.argv[1:]
+        return ' '.join(cmd_parts)
+    
+    # 交互模式下，返回None（需要从其他地方获取）
+    return None
+
+
+def check_existing_cron_jobs(command_pattern=None):
+    """检查crontab中是否已有类似的任务"""
+    try:
+        # 获取当前用户的crontab
+        result = subprocess.run(['crontab', '-l'], capture_output=True, text=True, encoding='utf-8', errors='replace')
+        if result.returncode != 0:
+            # 没有crontab或出错
+            return []
+        
+        existing_jobs = []
+        lines = result.stdout.strip().split('\n')
+        
+        for line in lines:
+            line = line.strip()
+            # 跳过注释和空行
+            if not line or line.startswith('#'):
+                continue
+            
+            # 检查是否包含应用名
+            app_name = os.path.basename(sys.argv[0])
+            if app_name in line or (command_pattern and command_pattern in line):
+                existing_jobs.append(line)
+        
+        return existing_jobs
+    except Exception as e:
+        print(f"⚠️  检查crontab失败: {e}")
+        return []
+
+
+def setup_cron_job():
+    """设置定时任务（Linux/macOS 使用 cron）"""
+    print("\n" + "=" * 70)
+    print(" 定时任务设置")
+    print("=" * 70)
+    
+    # 检测系统类型
+    if sys.platform == "darwin":
+        system_type = "macOS"
+    elif is_openwrt():
+        system_type = "OpenWrt"
+    else:
+        system_type = "Linux"
+    print(f"检测到 {system_type} 环境，可以设置定时任务（使用 cron）")
+    
+    # 询问是否要设置定时任务
+    choice = input("\n是否要设置定时任务？[y/N]: ").strip().lower()
+    if choice not in ['y', 'yes']:
+        print("跳过设置定时任务")
+        return
+    
+    # 获取本次运行的命令
+    current_command = get_current_command()
+    
+    # 如果是交互模式，从保存的命令中获取
+    if not current_command:
+        global LAST_GENERATED_COMMAND
+        if LAST_GENERATED_COMMAND:
+            # generate_cli_command已经使用绝对路径，直接使用
+            current_command = LAST_GENERATED_COMMAND
+        else:
+            print("⚠️  无法获取本次运行的命令，请手动设置定时任务")
+            print("   您可以使用 'crontab -e' 手动编辑定时任务")
+            return
+    
+    # 检查是否已有类似的任务
+    app_name = os.path.basename(sys.argv[0])
+    existing_jobs = check_existing_cron_jobs(app_name)
+    
+    if existing_jobs:
+        print(f"\n⚠️  检测到已存在 {len(existing_jobs)} 个类似的定时任务：")
+        for i, job in enumerate(existing_jobs, 1):
+            print(f"  {i}. {job}")
+        
+        print("\n请选择操作：")
+        print("  1. 清理现有任务后添加新任务")
+        print("  2. 继续添加新任务（保留现有任务）")
+        print("  3. 取消设置")
+        
+        while True:
+            choice = input("\n请选择 [1/2/3]: ").strip()
+            if choice == "1":
+                should_clear = True
+                break
+            elif choice == "2":
+                should_clear = False
+                break
+            elif choice == "3":
+                print("取消设置定时任务")
+                return
+            else:
+                print("✗ 请输入 1、2 或 3")
+    else:
+        should_clear = False
+    
+    # 获取cron时间表达式
+    print("\n" + "=" * 70)
+    print(" 设置定时任务时间")
+    print("=" * 70)
+    print("Cron时间格式: 分 时 日 月 周")
+    print("示例:")
+    print("  每天凌晨2点: 0 2 * * *")
+    print("  每小时: 0 * * * *")
+    print("  每30分钟: */30 * * * *")
+    print("  每周一凌晨3点: 0 3 * * 1")
+    print("  每月1号凌晨1点: 0 1 1 * *")
+    print("=" * 70)
+    
+    while True:
+        cron_time = input("\n请输入Cron时间表达式 [例如: 0 2 * * *]: ").strip()
+        if not cron_time:
+            print("✗ 时间表达式不能为空")
+            continue
+        
+        # 验证cron时间格式（简单验证）
+        parts = cron_time.split()
+        if len(parts) != 5:
+            print("✗ Cron时间格式错误，应为5个字段（分 时 日 月 周）")
+            continue
+        
+        # 确认时间表达式
+        print(f"\n您设置的时间表达式: {cron_time}")
+        confirm = input("确认使用此时间？[Y/n]: ").strip().lower()
+        if confirm not in ['n', 'no']:
+            break
+    
+    # 构建cron任务（如果是Python脚本，添加PATH环境变量）
+    script_path = os.path.abspath(sys.argv[0])
+    app_name = os.path.basename(script_path)
+    
+    # 检查是否是Python脚本
+    if app_name.endswith('.py'):
+        # 获取当前PATH环境变量
+        current_path = os.environ.get('PATH', '')
+        # 获取Python可执行文件的目录
+        python_exe = get_python_executable()
+        python_dir = os.path.dirname(python_exe)
+        
+        # 构建带环境变量的cron命令
+        # 设置PATH环境变量，确保能找到python3和其他命令
+        if current_path:
+            # 将PATH分割成列表，去除重复
+            path_list = current_path.split(':')
+            # 如果Python目录不在PATH中，添加到前面
+            if python_dir not in path_list:
+                path_list.insert(0, python_dir)
+            # 去除重复的路径
+            seen = set()
+            unique_paths = []
+            for path in path_list:
+                if path and path not in seen:
+                    seen.add(path)
+                    unique_paths.append(path)
+            env_path = ':'.join(unique_paths)
+        else:
+            env_path = python_dir
+        
+        # 构建cron命令，包含PATH环境变量设置
+        cron_line = f"{cron_time} PATH={env_path} {current_command}"
+    else:
+        # 非Python脚本，直接使用命令
+        cron_line = f"{cron_time} {current_command}"
+    
+    try:
+        # 读取现有crontab
+        result = subprocess.run(['crontab', '-l'], capture_output=True, text=True, encoding='utf-8', errors='replace')
+        existing_crontab = ""
+        if result.returncode == 0:
+            existing_crontab = result.stdout
+        
+        # 如果需要清理，移除类似的任务
+        if should_clear:
+            lines = existing_crontab.strip().split('\n')
+            filtered_lines = []
+            for line in lines:
+                if app_name not in line:
+                    filtered_lines.append(line)
+            existing_crontab = '\n'.join(filtered_lines)
+            if existing_crontab and not existing_crontab.endswith('\n'):
+                existing_crontab += '\n'
+        
+        # 添加新任务
+        new_crontab = existing_crontab
+        if new_crontab and not new_crontab.endswith('\n'):
+            new_crontab += '\n'
+        new_crontab += f"# Cloudflare SpeedTest 定时任务 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+        new_crontab += f"{cron_line}\n"
+        
+        # 写入crontab
+        process = subprocess.Popen(['crontab', '-'], stdin=subprocess.PIPE, text=True, encoding='utf-8', errors='replace')
+        process.communicate(input=new_crontab)
+        
+        if process.returncode == 0:
+            print("\n✅ 定时任务设置成功！")
+            print(f"任务: {cron_line}")
+            print("\n💡 提示:")
+            print("  - 使用 'crontab -l' 查看所有定时任务")
+            print("  - 使用 'crontab -e' 编辑定时任务")
+            print("  - 使用 'crontab -r' 删除所有定时任务")
+        else:
+            print("❌ 设置定时任务失败")
+    except Exception as e:
+        print(f"❌ 设置定时任务失败: {e}")
+        print("   请手动使用 'crontab -e' 编辑定时任务")
+
+
+def setup_windows_task():
+    """设置 Windows 定时任务（使用任务计划程序）"""
+    print("\n" + "=" * 70)
+    print(" 定时任务设置")
+    print("=" * 70)
+    print("检测到 Windows 环境，可以设置定时任务（使用任务计划程序）")
+    
+    # 询问是否要设置定时任务
+    choice = input("\n是否要设置定时任务？[y/N]: ").strip().lower()
+    if choice not in ['y', 'yes']:
+        print("跳过设置定时任务")
+        return
+    
+    # 获取本次运行的命令
+    current_command = get_current_command()
+    
+    # 如果是交互模式，从保存的命令中获取
+    if not current_command:
+        global LAST_GENERATED_COMMAND
+        if LAST_GENERATED_COMMAND:
+            current_command = LAST_GENERATED_COMMAND
+        else:
+            print("⚠️  无法获取本次运行的命令，请手动设置定时任务")
+            print("   您可以使用任务计划程序手动创建任务")
+            return
+    
+    # 获取任务名称
+    app_name = os.path.basename(sys.argv[0]).replace('.py', '').replace('.exe', '')
+    task_name = f"CloudflareSpeedTest_{app_name}"
+    
+    # 检查是否已有任务
+    try:
+        result = subprocess.run(
+            ['schtasks', '/query', '/tn', task_name],
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+        if result.returncode == 0:
+            print(f"\n⚠️  检测到已存在任务: {task_name}")
+            print("请选择操作：")
+            print("  1. 删除现有任务后创建新任务")
+            print("  2. 取消设置")
+            
+            while True:
+                choice = input("\n请选择 [1/2]: ").strip()
+                if choice == "1":
+                    # 删除现有任务
+                    subprocess.run(
+                        ['schtasks', '/delete', '/tn', task_name, '/f'],
+                        capture_output=True,
+                        text=True,
+                        encoding='utf-8',
+                        errors='replace'
+                    )
+                    print("✓ 已删除现有任务")
+                    break
+                elif choice == "2":
+                    print("取消设置定时任务")
+                    return
+                else:
+                    print("✗ 请输入 1 或 2")
+    except Exception:
+        pass  # 任务不存在，继续创建
+    
+    # 获取时间设置
+    print("\n" + "=" * 70)
+    print(" 设置定时任务时间")
+    print("=" * 70)
+    print("Windows 任务计划程序支持多种触发方式：")
+    print("  1. 每天指定时间（例如: 每天凌晨2点）")
+    print("  2. 每小时（例如: 每小时的第0分钟）")
+    print("  3. 每N分钟（例如: 每30分钟）")
+    print("  4. 每周指定时间（例如: 每周一凌晨3点）")
+    print("=" * 70)
+    
+    print("\n请选择触发方式：")
+    print("  1. 每天指定时间")
+    print("  2. 每小时")
+    print("  3. 每N分钟")
+    print("  4. 每周指定时间")
+    
+    schedule_type = input("\n请选择 [1-4]: ").strip()
+    
+    # 构建 schtasks 命令
+    # 直接使用 current_command，因为它已经包含了完整的命令和参数
+    # 但需要确保路径格式正确（Windows 使用反斜杠）
+    if current_command:
+        # current_command 已经是完整命令，直接使用
+        # 但需要处理路径中的空格（用引号包裹整个命令）
+        full_command = current_command
+        # 如果命令中包含空格路径，需要确保正确转义
+        # schtasks 的 /tr 参数会自动处理引号
+    else:
+        # 如果没有 current_command，构建基本命令
+        script_path = os.path.abspath(sys.argv[0])
+        if script_path.endswith('.py'):
+            python_exe = get_python_executable()
+            if ' ' in python_exe:
+                python_exe = f'"{python_exe}"'
+            if ' ' in script_path:
+                script_path = f'"{script_path}"'
+            full_command = f"{python_exe} {script_path}"
+        else:
+            if ' ' in script_path:
+                script_path = f'"{script_path}"'
+            full_command = script_path
+    
+    # 根据选择的类型构建 schtasks 命令
+    schtasks_cmd = ['schtasks', '/create', '/tn', task_name, '/tr', full_command, '/sc']
+    
+    if schedule_type == "1":
+        # 每天指定时间
+        time_str = input("请输入时间 (HH:MM，例如: 02:00): ").strip()
+        if not time_str:
+            print("✗ 时间不能为空")
+            return
+        schtasks_cmd.extend(['daily', '/st', time_str])
+        
+    elif schedule_type == "2":
+        # 每小时
+        minute = input("请输入分钟数 (0-59，例如: 0): ").strip() or "0"
+        schtasks_cmd.extend(['hourly', '/mo', '1'])
+        # 注意：Windows 任务计划程序的 hourly 不支持指定分钟，需要手动计算
+        print("⚠️  注意：Windows 任务计划程序的每小时触发不支持指定分钟")
+        print("   将设置为每小时的第0分钟执行")
+        
+    elif schedule_type == "3":
+        # 每N分钟
+        minutes = input("请输入分钟数 (例如: 30): ").strip()
+        if not minutes or not minutes.isdigit():
+            print("✗ 请输入有效的数字")
+            return
+        schtasks_cmd.extend(['minute', '/mo', minutes])
+        
+    elif schedule_type == "4":
+        # 每周指定时间
+        day = input("请输入星期几 (1=周一, 2=周二, ..., 7=周日，例如: 1): ").strip()
+        time_str = input("请输入时间 (HH:MM，例如: 03:00): ").strip()
+        if not day or not time_str:
+            print("✗ 星期和时间不能为空")
+            return
+        schtasks_cmd.extend(['weekly', '/d', day, '/st', time_str])
+        
+    else:
+        print("✗ 无效选择")
+        return
+    
+    # 添加其他参数
+    schtasks_cmd.extend(['/f'])  # 强制创建（如果已存在则覆盖）
+    
+    # 确认
+    print(f"\n任务名称: {task_name}")
+    print(f"命令: {full_command}")
+    print(f"触发方式: {schedule_type}")
+    confirm = input("\n确认创建此任务？[Y/n]: ").strip().lower()
+    if confirm in ['n', 'no']:
+        print("取消创建任务")
+        return
+    
+    # 执行创建任务
+    try:
+        result = subprocess.run(
+            schtasks_cmd,
+            capture_output=True,
+            text=True,
+            encoding='utf-8',
+            errors='replace'
+        )
+        
+        if result.returncode == 0:
+            print("\n✅ 定时任务设置成功！")
+            print(f"任务名称: {task_name}")
+            print("\n💡 提示:")
+            print("  - 使用 'schtasks /query /tn " + task_name + "' 查看任务详情")
+            print("  - 使用 'schtasks /delete /tn " + task_name + " /f' 删除任务")
+            print("  - 使用 'taskschd.msc' 打开任务计划程序图形界面")
+        else:
+            print("❌ 设置定时任务失败")
+            if result.stderr:
+                print(f"错误信息: {result.stderr}")
+            print("\n💡 提示: 可能需要管理员权限，请以管理员身份运行")
+    except Exception as e:
+        print(f"❌ 设置定时任务失败: {e}")
+        print("   请使用任务计划程序（taskschd.msc）手动创建任务")
 
 
 def load_config():
@@ -1466,16 +2669,34 @@ def load_config():
     return None
 
 
-def save_config(worker_domain, uuid):
+def save_config(worker_domain=None, uuid=None, github_token=None, repo_info=None, file_path=None):
     """保存配置到文件"""
     try:
-        config = {
-            "worker_domain": worker_domain,
-            "uuid": uuid,
-            "last_used": datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
+        # 加载现有配置
+        existing_config = {}
+        if os.path.exists(CONFIG_FILE):
+            try:
+                with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                    existing_config = json.load(f)
+            except:
+                pass
+        
+        # 更新配置
+        if worker_domain and uuid:
+            existing_config["worker_domain"] = worker_domain
+            existing_config["uuid"] = uuid
+            existing_config["api_last_used"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        if github_token and repo_info:
+            existing_config["github_token"] = github_token
+            existing_config["repo_info"] = repo_info
+            if file_path:
+                existing_config["file_path"] = file_path
+            existing_config["github_last_used"] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        # 保存配置
         with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-            json.dump(config, f, ensure_ascii=False, indent=2)
+            json.dump(existing_config, f, ensure_ascii=False, indent=2)
         return True
     except Exception as e:
         print(f"⚠️  保存配置失败: {e}")
@@ -1495,25 +2716,56 @@ def clear_config():
 
 
 def upload_results_to_api(result_file="result.csv"):
-    """上报优选结果到 Cloudflare Workers API"""
+    """上报优选结果到 Cloudflare Workers API 或 GitHub
+    
+    Returns:
+        dict: 上传配置信息，包含上传方式、相关参数等，如果未上传则返回None
+    """
     print("\n" + "=" * 70)
     print(" 优选结果上报功能")
     print("=" * 70)
-    print(" 此功能可以将测速结果上报到您的 Cloudflare Workers API")
-    print(" 需要提供您的 Worker 域名和 UUID")
+    print(" 此功能可以将测速结果上报到您的 Cloudflare Workers API 或 GitHub")
     print("=" * 70)
     
     # 询问是否上报
     choice = input("\n是否要上报优选结果？[y/N]: ").strip().lower()
     if choice not in ['y', 'yes']:
         print("跳过上报")
-        return
+        return None
+    
+    # 选择上传方式
+    print("\n" + "=" * 70)
+    print(" 请选择上传方式")
+    print("=" * 70)
+    print("  1. Cloudflare Workers API")
+    print("  2. GitHub (Gist)")
+    print("=" * 70)
+    
+    while True:
+        upload_method = input("\n请选择上传方式 [1/2]: ").strip()
+        if upload_method == "1":
+            upload_info = upload_to_cloudflare_api(result_file)
+            return upload_info
+        elif upload_method == "2":
+            upload_info = upload_to_github(result_file)
+            return upload_info
+        else:
+            print("✗ 请输入 1 或 2")
+
+
+def upload_to_cloudflare_api(result_file="result.csv"):
+    """上报优选结果到 Cloudflare Workers API"""
+    print("\n" + "=" * 70)
+    print(" Cloudflare Workers API 上报")
+    print("=" * 70)
+    print(" 需要提供您的 Worker 域名和 UUID或者路径")
+    print("=" * 70)
     
     # 检查结果文件是否存在
     if not os.path.exists(result_file):
         print(f"❌ 未找到测速结果文件: {result_file}")
         print("请先完成测速后再上报结果")
-        return
+        return None
     
     # 尝试加载保存的配置
     saved_config = load_config()
@@ -1527,7 +2779,7 @@ def upload_results_to_api(result_file="result.csv"):
         
         print(f"\n💾 检测到上次使用的配置:")
         print(f"   Worker 域名: {saved_domain}")
-        print(f"   UUID: {saved_uuid}")
+        print(f"   UUID或者路径: {saved_uuid}")
         print(f"   上次使用: {last_used}")
         print("\n是否使用上次的配置？")
         print("  1. 是 - 使用上次配置")
@@ -1541,9 +2793,9 @@ def upload_results_to_api(result_file="result.csv"):
                 uuid = saved_uuid
                 print(f"\n✅ 使用保存的配置")
                 print(f"   Worker 域名: {worker_domain}")
-                print(f"   UUID: {uuid}")
+                print(f"   UUID或者路径: {uuid}")
                 # 更新最后使用时间
-                save_config(worker_domain, uuid)
+                save_config(worker_domain=worker_domain, uuid=uuid)
                 break
             elif config_choice == "2":
                 print("\n请输入新的配置...")
@@ -1559,17 +2811,16 @@ def upload_results_to_api(result_file="result.csv"):
     if not worker_domain or not uuid:
         # 获取管理页面 URL
         print("\n📝 请输入您的 Worker 管理页面 URL")
-        print("示例: https://你的域名/你的UUID")
+        print("示例: https://你的域名/你的UUID或者路径")
         print("提示: 直接复制浏览器地址栏的完整URL即可")
         
         management_url = input("\n管理页面 URL: ").strip()
         if not management_url:
             print("❌ URL 不能为空")
-            return
+            return None
     
         # 解析 URL，提取域名和 UUID
         try:
-            import re
             from urllib.parse import urlparse
             
             # 移除可能的协议前缀和尾部斜杠
@@ -1583,32 +2834,30 @@ def upload_results_to_api(result_file="result.csv"):
             parsed = urlparse(management_url)
             worker_domain = parsed.netloc
             
-            # 从路径中提取 UUID
-            # UUID 格式：8-4-4-4-12 (例如: 351c9981-04b6-4103-aa4b-864aa9c91469)
-            uuid_pattern = r'([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})'
-            uuid_match = re.search(uuid_pattern, parsed.path, re.IGNORECASE)
-            
+            # 从路径中提取 UUID（不再验证格式）
             if not worker_domain:
                 print("❌ 无法解析域名，请检查 URL 格式")
-                return
+                return None
             
-            if not uuid_match:
-                print("❌ 无法从 URL 中提取 UUID")
-                print("   请确保 URL 包含完整的 UUID")
-                print("   格式示例: https://域名/UUID")
-                return
+            # 从路径中提取最后一个非空部分作为UUID
+            path_parts = [p for p in parsed.path.strip('/').split('/') if p]
+            if not path_parts:
+                print("❌ 无法从 URL 中提取 UUID或者路径")
+                print("   请确保 URL 包含 UUID或者路径")
+                print("   格式示例: https://域名/UUID或者路径")
+                return None
             
-            uuid = uuid_match.group(1)
+            uuid = path_parts[-1]
             
             # 显示解析结果
             print(f"\n✅ 成功解析配置:")
             print(f"   Worker 域名: {worker_domain}")
-            print(f"   UUID: {uuid}")
+            print(f"   UUID或者路径: {uuid}")
             
             # 询问是否保存配置
             save_choice = input("\n是否保存此配置供下次使用？[Y/n]: ").strip().lower()
             if save_choice not in ['n', 'no']:
-                if save_config(worker_domain, uuid):
+                if save_config(worker_domain=worker_domain, uuid=uuid):
                     print("✅ 配置已保存")
                 else:
                     print("⚠️  配置保存失败，但不影响本次上报")
@@ -1616,7 +2865,7 @@ def upload_results_to_api(result_file="result.csv"):
         except Exception as e:
             print(f"❌ URL 解析失败: {e}")
             print("   请检查 URL 格式是否正确")
-            return
+            return None
     
     # 构建 API URL
     api_url = f"https://{worker_domain}/{uuid}/api/preferred-ips"
@@ -1672,25 +2921,26 @@ def upload_results_to_api(result_file="result.csv"):
         with open(result_file, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
-                ip = row.get('IP 地址', '').strip()
-                port = row.get('端口', '').strip()
+                # 安全获取数据，避免NoneType错误
+                ip = (row.get('IP 地址') or '').strip()
+                port = (row.get('端口') or '').strip()
                 
                 # 尝试多种可能的列名来获取速度
                 speed = ''
                 for speed_key in ['下载速度(MB/s)', '下载速度 (MB/s)', '下载速度']:
-                    if speed_key in row:
-                        speed = row[speed_key].strip()
+                    if speed_key in row and row[speed_key] is not None:
+                        speed = str(row[speed_key]).strip()
                         break
                 
                 # 尝试多种可能的列名来获取延迟
                 latency = ''
                 for latency_key in ['平均延迟', '延迟', 'latency']:
-                    if latency_key in row:
-                        latency = row[latency_key].strip()
+                    if latency_key in row and row[latency_key] is not None:
+                        latency = str(row[latency_key]).strip()
                         break
                 
                 # 获取地区码
-                region_code = row.get('地区码', '').strip()
+                region_code = (row.get('地区码') or '').strip()
                 
                 # 如果IP地址中包含端口信息
                 if ip and ':' in ip:
@@ -1763,7 +3013,7 @@ def upload_results_to_api(result_file="result.csv"):
         confirm = input("\n确认上报以上IP？[Y/n]: ").strip().lower()
         if confirm in ['n', 'no']:
             print("取消上报")
-            return
+            return None
         
         # 如果需要清空，先执行清空操作
         if should_clear:
@@ -1859,7 +3109,7 @@ def upload_results_to_api(result_file="result.csv"):
                     fail_count = upload_count
             elif response and response.status_code == 403:
                 print(f"❌ 认证失败！请检查：")
-                print(f"   1. UUID 是否正确")
+                print(f"   1. UUID或者路径是否正确")
                 print(f"   2. 是否在配置页面开启了 'API管理' 功能")
                 fail_count = upload_count
             elif response:
@@ -1873,12 +3123,15 @@ def upload_results_to_api(result_file="result.csv"):
                 
         except requests.exceptions.Timeout:
             print(f"❌ 请求超时，请检查网络连接")
+            print(f"   建议：检查网络连接或稍后重试")
             fail_count = upload_count
         except requests.exceptions.RequestException as e:
             print(f"❌ 网络错误: {e}")
+            print(f"   建议：检查网络连接或API地址是否正确")
             fail_count = upload_count
         except Exception as e:
             print(f"❌ 请求失败: {e}")
+            print(f"   建议：检查配置是否正确，或联系技术支持")
             fail_count = upload_count
         
         # 显示统计信息
@@ -1898,6 +3151,992 @@ def upload_results_to_api(result_file="result.csv"):
             print(f"   - 您可以访问 https://{worker_domain}/{uuid} 查看管理页面")
             print(f"   - 优选IP已添加，订阅生成时会自动使用")
             print(f"   - 批量上报速度更快，避免了逐个请求的超时问题")
+        
+        # 返回上传配置信息
+        return {
+            "upload_method": "api",
+            "worker_domain": worker_domain,
+            "uuid": uuid,
+            "upload_count": upload_count,
+            "clear_existing": should_clear  # 保存清空选项
+        }
+        
+    except Exception as e:
+        print(f"❌ 读取测速结果失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def upload_to_github(result_file="result.csv"):
+    """上传优选结果到 GitHub 公开仓库
+    
+    Returns:
+        dict: 上传配置信息，包含上传方式、相关参数等，如果未上传则返回None
+    """
+    print("\n" + "=" * 70)
+    print(" GitHub 仓库上传")
+    print("=" * 70)
+    print(" 此功能可以将测速结果上传到 GitHub 公开仓库")
+    print(" 需要提供 GitHub Personal Access Token")
+    print("=" * 70)
+    
+    # 检查结果文件是否存在
+    if not os.path.exists(result_file):
+        print(f"❌ 未找到测速结果文件: {result_file}")
+        print("请先完成测速后再上传结果")
+        return None
+    
+    # 尝试加载保存的配置
+    saved_config = load_config()
+    github_token = None
+    repo_info = None
+    file_path = "cloudflare_ips.txt"
+    
+    if saved_config:
+        saved_token = saved_config.get('github_token', '')
+        saved_repo = saved_config.get('repo_info', '')
+        saved_file_path = saved_config.get('file_path', 'cloudflare_ips.txt')
+        last_used = saved_config.get('github_last_used', '未知')
+        
+        if saved_token and saved_repo:
+            print(f"\n💾 检测到上次使用的配置:")
+            print(f"   GitHub Token: {saved_token[:10]}...{saved_token[-4:]}")
+            print(f"   仓库: {saved_repo}")
+            print(f"   文件路径: {saved_file_path}")
+            print(f"   上次使用: {last_used}")
+            print("\n是否使用上次的配置？")
+            print("  1. 是 - 使用上次配置")
+            print("  2. 否 - 输入新的配置")
+            print("  3. 清除配置 - 删除保存的配置")
+            
+            while True:
+                config_choice = input("\n请选择 [1/2/3]: ").strip()
+                if config_choice == "1":
+                    github_token = saved_token
+                    repo_info = saved_repo
+                    file_path = saved_file_path
+                    print(f"\n✅ 使用保存的配置")
+                    print(f"   仓库: {repo_info}")
+                    print(f"   文件路径: {file_path}")
+                    # 更新最后使用时间
+                    save_config(github_token=github_token, repo_info=repo_info, file_path=file_path)
+                    break
+                elif config_choice == "2":
+                    print("\n请输入新的配置...")
+                    break
+                elif config_choice == "3":
+                    # 只清除GitHub配置，保留API配置
+                    if os.path.exists(CONFIG_FILE):
+                        try:
+                            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                                config = json.load(f)
+                            config.pop('github_token', None)
+                            config.pop('repo_info', None)
+                            config.pop('file_path', None)
+                            config.pop('github_last_used', None)
+                            with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+                                json.dump(config, f, ensure_ascii=False, indent=2)
+                            print("✅ 已清除保存的GitHub配置")
+                        except:
+                            pass
+                    print("请重新输入配置...")
+                    break
+                else:
+                    print("✗ 请输入 1、2 或 3")
+    
+    # 如果没有使用保存的配置，则获取新的配置
+    if not github_token or not repo_info:
+        # 获取 GitHub Token
+        print("\n📝 请输入您的 GitHub Personal Access Token")
+        print("提示: 如果没有Token，请访问 https://github.com/settings/tokens 创建")
+        print("     需要 repo 权限")
+        
+        github_token = input("\nGitHub Token: ").strip()
+        if not github_token:
+            print("❌ Token 不能为空")
+            return None
+        
+        # 获取仓库信息
+        print("\n📝 请输入仓库信息")
+        print("格式: owner/repo (例如: username/repo-name)")
+        
+        repo_info = input("\n仓库 (owner/repo): ").strip()
+        if not repo_info or '/' not in repo_info:
+            print("❌ 仓库格式不正确，应为 owner/repo")
+            return None
+        
+        # 获取文件路径
+        file_path_input = input("\n文件路径 [默认: cloudflare_ips.txt]: ").strip()
+        if file_path_input:
+            file_path = file_path_input
+        
+        # 询问是否保存配置
+        save_choice = input("\n是否保存此配置供下次使用？[Y/n]: ").strip().lower()
+        if save_choice not in ['n', 'no']:
+            if save_config(github_token=github_token, repo_info=repo_info, file_path=file_path):
+                print("✅ 配置已保存")
+            else:
+                print("⚠️  配置保存失败，但不影响本次上传")
+    
+    repo_parts = repo_info.split('/', 1)
+    owner = repo_parts[0]
+    repo = repo_parts[1]
+    
+    # 读取测速结果
+    print("\n📊 正在读取测速结果...")
+    try:
+        best_ips = []
+        with open(result_file, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # 安全获取数据，避免NoneType错误
+                ip = (row.get('IP 地址') or '').strip()
+                port = (row.get('端口') or '').strip()
+                
+                # 尝试多种可能的列名来获取速度
+                speed = ''
+                for speed_key in ['下载速度(MB/s)', '下载速度 (MB/s)', '下载速度']:
+                    if speed_key in row and row[speed_key] is not None:
+                        speed = str(row[speed_key]).strip()
+                        break
+                
+                # 尝试多种可能的列名来获取延迟
+                latency = ''
+                for latency_key in ['平均延迟', '延迟', 'latency']:
+                    if latency_key in row and row[latency_key] is not None:
+                        latency = str(row[latency_key]).strip()
+                        break
+                
+                # 获取地区码
+                region_code = (row.get('地区码') or '').strip()
+                
+                # 如果IP地址中包含端口信息
+                if ip and ':' in ip:
+                    ip_parts = ip.split(':')
+                    if len(ip_parts) == 2:
+                        ip = ip_parts[0]
+                        if not port:
+                            port = ip_parts[1]
+                
+                # 设置默认端口
+                if not port:
+                    port = '443'
+                
+                if ip:
+                    try:
+                        speed_val = float(speed) if speed else 0
+                        latency_val = latency if latency else 'N/A'
+                        
+                        # 获取地区中文名称
+                        region_name = '未知地区'
+                        if region_code and region_code in AIRPORT_CODES:
+                            region_name = AIRPORT_CODES[region_code].get('name', region_code)
+                        elif region_code:
+                            region_name = region_code
+                        
+                        best_ips.append({
+                            'ip': ip,
+                            'port': int(port),
+                            'speed': speed_val,
+                            'latency': latency_val,
+                            'region_code': region_code,
+                            'region_name': region_name
+                        })
+                    except ValueError:
+                        continue
+        
+        if not best_ips:
+            print("❌ 未找到有效的测速结果")
+            return
+        
+        print(f"✅ 找到 {len(best_ips)} 个测速结果")
+        
+        # 询问要上传多少个结果
+        while True:
+            count_input = input(f"\n请输入要上传的IP数量 [默认: 10, 最多: {len(best_ips)}]: ").strip()
+            if not count_input:
+                upload_count = min(10, len(best_ips))
+                break
+            try:
+                upload_count = int(count_input)
+                if upload_count <= 0:
+                    print("✗ 请输入大于0的数字")
+                    continue
+                if upload_count > len(best_ips):
+                    print(f"⚠️  最多只能上传 {len(best_ips)} 个结果")
+                    upload_count = len(best_ips)
+                break
+            except ValueError:
+                print("✗ 请输入有效的数字")
+        
+        # 显示将要上传的IP
+        print(f"\n将上传以下 {upload_count} 个优选IP:")
+        print("-" * 70)
+        for i, ip_info in enumerate(best_ips[:upload_count], 1):
+            region_display = f"{ip_info['region_name']}" if ip_info.get('region_name') else '未知地区'
+            print(f"  {i:2d}. {ip_info['ip']:15s}:{ip_info['port']:<5d} - {ip_info['speed']:.2f} MB/s - {region_display} - 延迟: {ip_info['latency']}")
+        print("-" * 70)
+        
+        # 确认上传
+        confirm = input("\n确认上传以上IP？[Y/n]: ").strip().lower()
+        if confirm in ['n', 'no']:
+            print("取消上传")
+            return
+        
+        # 格式化数据为换行符分隔的格式（包含注释，和Cloudflare Workers API一样）
+        print("\n🚀 开始上传到 GitHub 仓库...")
+        content_lines = []
+        for ip_info in best_ips[:upload_count]:
+            # 构建节点名称：地区名-速度MB/s（和Cloudflare Workers API一样）
+            region_name = ip_info.get('region_name', '未知地区')
+            speed = ip_info['speed']
+            name = f"{region_name}-{speed:.2f}MB/s"
+            # 格式：IP:端口#地区名-速度MB/s（井号前后无空格）
+            content_lines.append(f"{ip_info['ip']}:{ip_info['port']}#{name}")
+        
+        # 使用换行符连接所有行
+        content = '\n'.join(content_lines)
+        
+        # 检查文件是否已存在
+        print(f"\n🔍 正在检查文件是否存在...")
+        file_sha = None
+        try:
+            try:
+                check_response = requests.get(
+                    f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                    headers={
+                        "Authorization": f"token {github_token}",
+                        "Accept": "application/vnd.github.v3+json"
+                    },
+                    timeout=10
+                )
+                if check_response.status_code == 200:
+                    file_data = check_response.json()
+                    file_sha = file_data.get('sha', '')
+                    print(f"⚠️  文件已存在，将更新文件")
+                elif check_response.status_code == 404:
+                    print(f"✅ 文件不存在，将创建新文件")
+                else:
+                    print(f"⚠️  无法检查文件状态，将尝试创建/更新")
+            except ImportError as e:
+                # SSL模块不可用，静默切换到curl
+                if "SSL module is not available" in str(e):
+                    check_response = curl_request(
+                        f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                        method='GET',
+                        headers={
+                            "Authorization": f"token {github_token}",
+                            "Accept": "application/vnd.github.v3+json"
+                        },
+                        timeout=10
+                    )
+                    if check_response.status_code == 200:
+                        file_data = check_response.json()
+                        file_sha = file_data.get('sha', '')
+                        print(f"⚠️  文件已存在，将更新文件")
+                    elif check_response.status_code == 404:
+                        print(f"✅ 文件不存在，将创建新文件")
+                    else:
+                        print(f"⚠️  无法检查文件状态，将尝试创建/更新")
+                else:
+                    raise
+        except Exception as e:
+            print(f"⚠️  检查文件状态失败: {e}，将尝试创建/更新")
+        
+        # 准备上传数据
+        import base64
+        content_bytes = content.encode('utf-8')
+        content_base64 = base64.b64encode(content_bytes).decode('utf-8')
+        
+        upload_data = {
+            "message": f"更新Cloudflare优选IP列表 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "content": content_base64
+        }
+        
+        # 如果文件已存在，需要提供sha
+        if file_sha:
+            upload_data["sha"] = file_sha
+        
+        # 上传到 GitHub 仓库
+        try:
+            try:
+                if file_sha:
+                    # 更新文件
+                    response = requests.put(
+                        f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                        json=upload_data,
+                        headers={
+                            "Authorization": f"token {github_token}",
+                            "Accept": "application/vnd.github.v3+json"
+                        },
+                        timeout=30
+                    )
+                else:
+                    # 创建文件
+                    response = requests.put(
+                        f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                        json=upload_data,
+                        headers={
+                            "Authorization": f"token {github_token}",
+                            "Accept": "application/vnd.github.v3+json"
+                        },
+                        timeout=30
+                    )
+            except ImportError as e:
+                # SSL模块不可用，静默切换到curl
+                if "SSL module is not available" in str(e):
+                    response = curl_request(
+                        f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                        method='PUT',
+                        data=upload_data,
+                        headers={
+                            "Authorization": f"token {github_token}",
+                            "Accept": "application/vnd.github.v3+json"
+                        },
+                        timeout=30
+                    )
+                else:
+                    raise
+            
+            if response and response.status_code in [200, 201]:
+                result = response.json()
+                file_url = result.get('content', {}).get('html_url', '')
+                
+                # 尝试获取默认分支
+                default_branch = "main"  # 默认使用main分支
+                try:
+                    try:
+                        repo_response = requests.get(
+                            f"https://api.github.com/repos/{owner}/{repo}",
+                            headers={
+                                "Authorization": f"token {github_token}",
+                                "Accept": "application/vnd.github.v3+json"
+                            },
+                            timeout=10
+                        )
+                        if repo_response.status_code == 200:
+                            repo_data = repo_response.json()
+                            default_branch = repo_data.get('default_branch', 'main')
+                    except:
+                        pass
+                except:
+                    pass
+                
+                raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}/{file_path}"
+                
+                print("\n" + "=" * 70)
+                print(" ✅ 上传成功！")
+                print("=" * 70)
+                print(f"  仓库地址: https://github.com/{owner}/{repo}")
+                if file_url:
+                    print(f"  文件地址: {file_url}")
+                print(f"  原始文件地址: {raw_url}")
+                print(f"  上传数量: {upload_count} 个IP")
+                print("=" * 70)
+                
+                print(f"\n💡 提示:")
+                print(f"   - 您可以使用原始文件地址直接访问IP列表")
+                print(f"   - 文件格式为换行符分隔，每行一个 IP:端口#地区名-速度MB/s")
+                print(f"   - 您可以在GitHub上管理这个仓库")
+                
+                # 返回上传配置信息
+                return {
+                    "upload_method": "github",
+                    "repo_info": f"{owner}/{repo}",
+                    "github_token": github_token,
+                    "file_path": file_path,
+                    "upload_count": upload_count
+                }
+            elif response and response.status_code == 401:
+                print(f"❌ 认证失败！请检查：")
+                print(f"   1. GitHub Token 是否正确")
+                print(f"   2. Token 是否具有 repo 权限")
+            elif response and response.status_code == 404:
+                print(f"❌ 仓库不存在或无权限！请检查：")
+                print(f"   1. 仓库路径是否正确: {owner}/{repo}")
+                print(f"   2. Token 是否有该仓库的写入权限")
+            elif response:
+                print(f"❌ 上传失败 (HTTP {response.status_code})")
+                try:
+                    error_detail = response.json()
+                    print(f"   错误详情: {error_detail.get('message', '无详情')}")
+                except:
+                    pass
+        except requests.exceptions.Timeout:
+            print(f"❌ 请求超时，请检查网络连接")
+            print(f"   建议：检查网络连接或稍后重试")
+        except requests.exceptions.RequestException as e:
+            print(f"❌ 网络错误: {e}")
+            print(f"   建议：检查网络连接或GitHub API地址是否正确")
+        except Exception as e:
+            print(f"❌ 上传失败: {e}")
+            print(f"   建议：检查配置是否正确，或联系技术支持")
+        
+    except Exception as e:
+        print(f"❌ 读取测速结果失败: {e}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def upload_to_cloudflare_api_cli(result_file="result.csv", worker_domain=None, uuid=None, upload_count=10, clear_existing=False):
+    """命令行模式：上报优选结果到 Cloudflare Workers API
+    
+    Args:
+        result_file: 测速结果文件路径
+        worker_domain: Worker域名
+        uuid: UUID或路径
+        upload_count: 上传IP数量
+        clear_existing: 是否清空现有IP（默认: False）
+    """
+    print("\n" + "=" * 70)
+    print(" 命令行模式：Cloudflare Workers API 上报")
+    print("=" * 70)
+    
+    # 检查结果文件是否存在
+    if not os.path.exists(result_file):
+        print(f"❌ 未找到测速结果文件: {result_file}")
+        return
+    
+    # 构建 API URL
+    api_url = f"https://{worker_domain}/{uuid}/api/preferred-ips"
+    
+    # 检查是否已有数据并决定是否清空
+    should_clear = False
+    if clear_existing:
+        # 如果指定了清空选项，先检查现有数据
+        print("\n🔍 正在检查现有优选IP...")
+        try:
+            try:
+                response = requests.get(api_url, timeout=10)
+            except ImportError as e:
+                # SSL模块不可用，静默切换到curl
+                if "SSL module is not available" in str(e):
+                    response = curl_request(api_url, method='GET', timeout=10)
+                else:
+                    raise
+            
+            if response.status_code == 200:
+                result = response.json()
+                existing_count = result.get('count', 0)
+                if existing_count > 0:
+                    print(f"⚠️  发现已存在 {existing_count} 个优选IP")
+                    should_clear = True
+                else:
+                    print("✅ 当前无数据，将直接添加")
+            else:
+                print("⚠️  无法获取现有数据状态，将尝试清空后添加")
+                should_clear = True
+        except Exception as e:
+            print(f"⚠️  检查现有数据失败: {e}")
+            print("将继续尝试清空后添加...")
+            should_clear = True
+    else:
+        # 如果没有指定清空选项，检查现有数据但不清空
+        print("\n🔍 正在检查现有优选IP...")
+        try:
+            try:
+                response = requests.get(api_url, timeout=10)
+            except ImportError as e:
+                # SSL模块不可用，静默切换到curl
+                if "SSL module is not available" in str(e):
+                    response = curl_request(api_url, method='GET', timeout=10)
+                else:
+                    raise
+            
+            if response.status_code == 200:
+                result = response.json()
+                existing_count = result.get('count', 0)
+                if existing_count > 0:
+                    print(f"⚠️  发现已存在 {existing_count} 个优选IP")
+                    print("💡 提示: 使用 --clear 参数可以在上传前清空现有IP，避免IP累积")
+                else:
+                    print("✅ 当前无数据，将直接添加")
+        except Exception as e:
+            print(f"⚠️  检查现有数据失败: {e}")
+    
+    # 读取测速结果（先读取，确认有数据后再清空）
+    print("\n📊 正在读取测速结果...")
+    try:
+        best_ips = []
+        with open(result_file, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # 安全获取数据，避免NoneType错误
+                ip = (row.get('IP 地址') or '').strip()
+                port = (row.get('端口') or '').strip()
+                
+                # 尝试多种可能的列名来获取速度
+                speed = ''
+                for speed_key in ['下载速度(MB/s)', '下载速度 (MB/s)', '下载速度']:
+                    if speed_key in row and row[speed_key] is not None:
+                        speed = str(row[speed_key]).strip()
+                        break
+                
+                # 尝试多种可能的列名来获取延迟
+                latency = ''
+                for latency_key in ['平均延迟', '延迟', 'latency']:
+                    if latency_key in row and row[latency_key] is not None:
+                        latency = str(row[latency_key]).strip()
+                        break
+                
+                # 获取地区码
+                region_code = (row.get('地区码') or '').strip()
+                
+                # 如果IP地址中包含端口信息
+                if ip and ':' in ip:
+                    ip_parts = ip.split(':')
+                    if len(ip_parts) == 2:
+                        ip = ip_parts[0]
+                        if not port:
+                            port = ip_parts[1]
+                
+                # 设置默认端口
+                if not port:
+                    port = '443'
+                
+                if ip:
+                    try:
+                        speed_val = float(speed) if speed else 0
+                        latency_val = latency if latency else 'N/A'
+                        
+                        # 获取地区中文名称
+                        region_name = '未知地区'
+                        if region_code and region_code in AIRPORT_CODES:
+                            region_name = AIRPORT_CODES[region_code].get('name', region_code)
+                        elif region_code:
+                            region_name = region_code
+                        
+                        best_ips.append({
+                            'ip': ip,
+                            'port': int(port),
+                            'speed': speed_val,
+                            'latency': latency_val,
+                            'region_code': region_code,
+                            'region_name': region_name
+                        })
+                    except ValueError:
+                        continue
+        
+        if not best_ips:
+            print("❌ 未找到有效的测速结果")
+            return
+        
+        # 限制上传数量
+        upload_count = min(upload_count, len(best_ips))
+        print(f"✅ 找到 {len(best_ips)} 个测速结果，将上传前 {upload_count} 个")
+        
+        # 如果需要清空，先执行清空操作（在确认有数据可以上报之后）
+        if should_clear:
+            print("\n🗑️  正在清空现有数据...")
+            try:
+                try:
+                    delete_response = requests.delete(
+                        api_url,
+                        json={"all": True},
+                        headers={"Content-Type": "application/json"},
+                        timeout=10
+                    )
+                except ImportError as e:
+                    # SSL模块不可用，静默切换到curl
+                    if "SSL module is not available" in str(e):
+                        delete_response = curl_request(
+                            api_url,
+                            method='DELETE',
+                            data={"all": True},
+                            headers={"Content-Type": "application/json"},
+                            timeout=10
+                        )
+                    else:
+                        raise
+                
+                if delete_response.status_code == 200:
+                    print("✅ 现有数据已清空")
+                else:
+                    print(f"⚠️  清空失败 (HTTP {delete_response.status_code})，继续尝试添加...")
+            except Exception as e:
+                print(f"⚠️  清空操作失败: {e}，继续尝试添加...")
+        
+        # 构建批量上报数据
+        print("\n🚀 开始批量上报优选IP...")
+        batch_data = []
+        for ip_info in best_ips[:upload_count]:
+            # 构建节点名称：地区名-速度MB/s
+            region_name = ip_info.get('region_name', '未知地区')
+            speed = ip_info['speed']
+            name = f"{region_name}-{speed:.2f}MB/s"
+            
+            batch_data.append({
+                "ip": ip_info['ip'],
+                "port": ip_info['port'],
+                "name": name
+            })
+        
+        # 发送批量POST请求
+        try:
+            try:
+                response = requests.post(
+                    api_url,
+                    json=batch_data,
+                    headers={"Content-Type": "application/json"},
+                    timeout=30
+                )
+            except ImportError as e:
+                # SSL模块不可用，静默切换到curl备用方案
+                if "SSL module is not available" in str(e):
+                    response = curl_request(
+                        api_url,
+                        method='POST',
+                        data=batch_data,
+                        headers={"Content-Type": "application/json"},
+                        timeout=30
+                    )
+                else:
+                    raise
+            
+            # 处理响应
+            if response and response.status_code == 200:
+                result = response.json()
+                if result.get('success'):
+                    success_count = result.get('added', 0)
+                    fail_count = result.get('failed', 0)
+                    skipped_count = result.get('skipped', 0)
+                    
+                    print("\n" + "=" * 70)
+                    print(" ✅ 批量上报完成！")
+                    print("=" * 70)
+                    print(f"  ✅ 成功添加: {success_count} 个")
+                    if skipped_count > 0:
+                        print(f"  ⚠️  跳过重复: {skipped_count} 个")
+                    if fail_count > 0:
+                        print(f"  ❌ 失败: {fail_count} 个")
+                    print(f"  📊 总计: {upload_count} 个")
+                    print("=" * 70)
+                else:
+                    print(f"❌ 批量上报失败: {result.get('error', '未知错误')}")
+            elif response and response.status_code == 403:
+                print(f"❌ 认证失败！请检查：")
+                print(f"   1. UUID或者路径是否正确")
+                print(f"   2. 是否在配置页面开启了 'API管理' 功能")
+            elif response:
+                print(f"❌ 批量上报失败 (HTTP {response.status_code})")
+                try:
+                    error_detail = response.json()
+                    print(f"   错误详情: {error_detail.get('error', '无详情')}")
+                except:
+                    pass
+                
+        except requests.exceptions.Timeout:
+            print(f"❌ 请求超时，请检查网络连接")
+        except requests.exceptions.RequestException as e:
+            print(f"❌ 网络错误: {e}")
+        except Exception as e:
+            print(f"❌ 请求失败: {e}")
+        
+    except Exception as e:
+        print(f"❌ 读取测速结果失败: {e}")
+        import traceback
+        traceback.print_exc()
+
+
+def upload_to_github_cli(result_file="result.csv", repo_info=None, github_token=None, file_path="cloudflare_ips.txt", upload_count=10):
+    """命令行模式：上传优选结果到 GitHub 公开仓库"""
+    print("\n" + "=" * 70)
+    print(" 命令行模式：GitHub 仓库上传")
+    print("=" * 70)
+    
+    # 检查结果文件是否存在
+    if not os.path.exists(result_file):
+        print(f"❌ 未找到测速结果文件: {result_file}")
+        return
+    
+    # 解析仓库信息
+    if not repo_info or '/' not in repo_info:
+        print("❌ 仓库格式不正确，应为 owner/repo")
+        return
+    
+    repo_parts = repo_info.split('/', 1)
+    owner = repo_parts[0]
+    repo = repo_parts[1]
+    
+    # 读取测速结果
+    print("\n📊 正在读取测速结果...")
+    try:
+        best_ips = []
+        with open(result_file, 'r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # 安全获取数据，避免NoneType错误
+                ip = (row.get('IP 地址') or '').strip()
+                port = (row.get('端口') or '').strip()
+                
+                # 尝试多种可能的列名来获取速度
+                speed = ''
+                for speed_key in ['下载速度(MB/s)', '下载速度 (MB/s)', '下载速度']:
+                    if speed_key in row and row[speed_key] is not None:
+                        speed = str(row[speed_key]).strip()
+                        break
+                
+                # 尝试多种可能的列名来获取延迟
+                latency = ''
+                for latency_key in ['平均延迟', '延迟', 'latency']:
+                    if latency_key in row and row[latency_key] is not None:
+                        latency = str(row[latency_key]).strip()
+                        break
+                
+                # 获取地区码
+                region_code = (row.get('地区码') or '').strip()
+                
+                # 如果IP地址中包含端口信息
+                if ip and ':' in ip:
+                    ip_parts = ip.split(':')
+                    if len(ip_parts) == 2:
+                        ip = ip_parts[0]
+                        if not port:
+                            port = ip_parts[1]
+                
+                # 设置默认端口
+                if not port:
+                    port = '443'
+                
+                if ip:
+                    try:
+                        speed_val = float(speed) if speed else 0
+                        latency_val = latency if latency else 'N/A'
+                        
+                        # 获取地区中文名称
+                        region_name = '未知地区'
+                        if region_code and region_code in AIRPORT_CODES:
+                            region_name = AIRPORT_CODES[region_code].get('name', region_code)
+                        elif region_code:
+                            region_name = region_code
+                        
+                        best_ips.append({
+                            'ip': ip,
+                            'port': int(port),
+                            'speed': speed_val,
+                            'latency': latency_val,
+                            'region_code': region_code,
+                            'region_name': region_name
+                        })
+                    except ValueError:
+                        continue
+        
+        if not best_ips:
+            print("❌ 未找到有效的测速结果")
+            return
+        
+        # 限制上传数量
+        upload_count = min(upload_count, len(best_ips))
+        print(f"✅ 找到 {len(best_ips)} 个测速结果，将上传前 {upload_count} 个")
+        
+        # 格式化数据为换行符分隔的格式（包含注释，和Cloudflare Workers API一样）
+        print("\n🚀 开始上传到 GitHub 仓库...")
+        content_lines = []
+        for ip_info in best_ips[:upload_count]:
+            # 构建节点名称：地区名-速度MB/s（和Cloudflare Workers API一样）
+            region_name = ip_info.get('region_name', '未知地区')
+            speed = ip_info['speed']
+            name = f"{region_name}-{speed:.2f}MB/s"
+            # 格式：IP:端口#地区名-速度MB/s（井号前后无空格）
+            content_lines.append(f"{ip_info['ip']}:{ip_info['port']}#{name}")
+        
+        # 使用换行符连接所有行
+        content = '\n'.join(content_lines)
+        
+        # 检查文件是否已存在
+        print(f"\n🔍 正在检查文件是否存在...")
+        file_sha = None
+        try:
+            try:
+                check_response = requests.get(
+                    f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                    headers={
+                        "Authorization": f"token {github_token}",
+                        "Accept": "application/vnd.github.v3+json"
+                    },
+                    timeout=10
+                )
+                if check_response.status_code == 200:
+                    file_data = check_response.json()
+                    file_sha = file_data.get('sha', '')
+                    print(f"⚠️  文件已存在，将更新文件")
+                elif check_response.status_code == 404:
+                    print(f"✅ 文件不存在，将创建新文件")
+                else:
+                    print(f"⚠️  无法检查文件状态，将尝试创建/更新")
+            except ImportError as e:
+                # SSL模块不可用，静默切换到curl
+                if "SSL module is not available" in str(e):
+                    check_response = curl_request(
+                        f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                        method='GET',
+                        headers={
+                            "Authorization": f"token {github_token}",
+                            "Accept": "application/vnd.github.v3+json"
+                        },
+                        timeout=10
+                    )
+                    if check_response.status_code == 200:
+                        file_data = check_response.json()
+                        file_sha = file_data.get('sha', '')
+                        print(f"⚠️  文件已存在，将更新文件")
+                    elif check_response.status_code == 404:
+                        print(f"✅ 文件不存在，将创建新文件")
+                    else:
+                        print(f"⚠️  无法检查文件状态，将尝试创建/更新")
+                else:
+                    raise
+            except (requests.exceptions.ConnectionError, requests.exceptions.RequestException) as e:
+                # 网络连接错误，尝试使用curl备用方案
+                error_str = str(e)
+                if "Can't assign requested address" in error_str or "Failed to establish" in error_str or "Max retries exceeded" in error_str:
+                    print(f"⚠️  检测到网络连接问题，尝试使用curl备用方案...")
+                    try:
+                        check_response = curl_request(
+                            f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                            method='GET',
+                            headers={
+                                "Authorization": f"token {github_token}",
+                                "Accept": "application/vnd.github.v3+json"
+                            },
+                            timeout=10
+                        )
+                        if check_response.status_code == 200:
+                            file_data = check_response.json()
+                            file_sha = file_data.get('sha', '')
+                            print(f"⚠️  文件已存在，将更新文件")
+                        elif check_response.status_code == 404:
+                            print(f"✅ 文件不存在，将创建新文件")
+                        else:
+                            print(f"⚠️  无法检查文件状态，将尝试创建/更新")
+                    except Exception as curl_e:
+                        print(f"⚠️  curl备用方案也失败: {curl_e}，将尝试创建/更新")
+                else:
+                    raise
+        except Exception as e:
+            print(f"⚠️  检查文件状态失败: {e}，将尝试创建/更新")
+        
+        # 准备上传数据
+        import base64
+        content_bytes = content.encode('utf-8')
+        content_base64 = base64.b64encode(content_bytes).decode('utf-8')
+        
+        upload_data = {
+            "message": f"更新Cloudflare优选IP列表 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            "content": content_base64
+        }
+        
+        # 如果文件已存在，需要提供sha
+        if file_sha:
+            upload_data["sha"] = file_sha
+        
+        # 上传到 GitHub 仓库
+        try:
+            try:
+                response = requests.put(
+                    f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                    json=upload_data,
+                    headers={
+                        "Authorization": f"token {github_token}",
+                        "Accept": "application/vnd.github.v3+json"
+                    },
+                    timeout=30
+                )
+            except ImportError as e:
+                # SSL模块不可用，静默切换到curl
+                if "SSL module is not available" in str(e):
+                    response = curl_request(
+                        f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                        method='PUT',
+                        data=upload_data,
+                        headers={
+                            "Authorization": f"token {github_token}",
+                            "Accept": "application/vnd.github.v3+json"
+                        },
+                        timeout=30
+                    )
+                else:
+                    raise
+            except (requests.exceptions.ConnectionError, requests.exceptions.RequestException) as e:
+                # 网络连接错误，尝试使用curl备用方案
+                error_str = str(e)
+                if "Can't assign requested address" in error_str or "Failed to establish" in error_str or "Max retries exceeded" in error_str:
+                    print(f"⚠️  检测到网络连接问题，尝试使用curl备用方案...")
+                    try:
+                        response = curl_request(
+                            f"https://api.github.com/repos/{owner}/{repo}/contents/{file_path}",
+                            method='PUT',
+                            data=upload_data,
+                            headers={
+                                "Authorization": f"token {github_token}",
+                                "Accept": "application/vnd.github.v3+json"
+                            },
+                            timeout=30
+                        )
+                    except Exception as curl_e:
+                        print(f"❌ curl备用方案也失败: {curl_e}")
+                        raise
+                else:
+                    raise
+            
+            if response and response.status_code in [200, 201]:
+                result = response.json()
+                file_url = result.get('content', {}).get('html_url', '')
+                
+                # 尝试获取默认分支
+                default_branch = "main"  # 默认使用main分支
+                try:
+                    try:
+                        repo_response = requests.get(
+                            f"https://api.github.com/repos/{owner}/{repo}",
+                            headers={
+                                "Authorization": f"token {github_token}",
+                                "Accept": "application/vnd.github.v3+json"
+                            },
+                            timeout=10
+                        )
+                        if repo_response.status_code == 200:
+                            repo_data = repo_response.json()
+                            default_branch = repo_data.get('default_branch', 'main')
+                    except:
+                        pass
+                except:
+                    pass
+                
+                raw_url = f"https://raw.githubusercontent.com/{owner}/{repo}/{default_branch}/{file_path}"
+                
+                print("\n" + "=" * 70)
+                print(" ✅ 上传成功！")
+                print("=" * 70)
+                print(f"  仓库地址: https://github.com/{owner}/{repo}")
+                if file_url:
+                    print(f"  文件地址: {file_url}")
+                print(f"  原始文件地址: {raw_url}")
+                print(f"  上传数量: {upload_count} 个IP")
+                print("=" * 70)
+            elif response and response.status_code == 401:
+                print(f"❌ 认证失败！请检查：")
+                print(f"   1. GitHub Token 是否正确")
+                print(f"   2. Token 是否具有 repo 权限")
+            elif response and response.status_code == 404:
+                print(f"❌ 仓库不存在或无权限！请检查：")
+                print(f"   1. 仓库路径是否正确: {owner}/{repo}")
+                print(f"   2. Token 是否有该仓库的写入权限")
+            elif response:
+                print(f"❌ 上传失败 (HTTP {response.status_code})")
+                try:
+                    error_detail = response.json()
+                    print(f"   错误详情: {error_detail.get('message', '无详情')}")
+                except:
+                    pass
+        except requests.exceptions.Timeout:
+            print(f"❌ 请求超时，请检查网络连接")
+        except requests.exceptions.RequestException as e:
+            print(f"❌ 网络错误: {e}")
+        except Exception as e:
+            print(f"❌ 上传失败: {e}")
         
     except Exception as e:
         print(f"❌ 读取测速结果失败: {e}")
@@ -1920,7 +4159,7 @@ def detect_available_regions():
             with open("region_scan.csv", 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    colo = row.get('地区码', '').strip()
+                    colo = (row.get('地区码') or '').strip()
                     if colo and colo != 'N/A':
                         region_counts[colo] = region_counts.get(colo, 0) + 1
             
@@ -1962,7 +4201,7 @@ def detect_available_regions():
         print("=" * 50)
         
         # 直接运行命令，显示完整输出
-        result = subprocess.run(cmd, timeout=120)
+        result = subprocess.run(cmd, timeout=120, encoding='utf-8', errors='replace')
         
         if result.returncode == 0 and os.path.exists("region_scan.csv"):
             # 读取检测结果
@@ -1972,7 +4211,7 @@ def detect_available_regions():
             with open("region_scan.csv", 'r', encoding='utf-8') as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    colo = row.get('地区码', '').strip()
+                    colo = (row.get('地区码') or '').strip()
                     if colo and colo != 'N/A':
                         # 统计IP数量
                         if colo not in region_counts:
@@ -2023,8 +4262,24 @@ def detect_available_regions():
 
 if __name__ == "__main__":
     try:
-        sys.exit(main())
+        exit_code = main()
+        sys.exit(exit_code)
     except KeyboardInterrupt:
         print("\n\n用户取消操作")
+        # Windows 系统添加暂停，避免窗口立即关闭
+        if sys.platform == "win32":
+            print("\n" + "=" * 60)
+            input("按 Enter 键退出...")
         sys.exit(0)
-
+    except Exception as e:
+        print(f"\n❌ 程序运行出错: {e}")
+        print(f"   建议：")
+        print(f"   1. 检查网络连接")
+        print(f"   2. 确保有足够的磁盘空间")
+        print(f"   3. 检查Python环境是否正常")
+        print(f"   4. 如果问题持续，请联系技术支持")
+        # Windows 系统添加暂停，避免窗口立即关闭
+        if sys.platform == "win32":
+            print("\n" + "=" * 60)
+            input("按 Enter 键退出...")
+        sys.exit(1)
